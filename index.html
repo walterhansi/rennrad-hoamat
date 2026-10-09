@@ -37,6 +37,8 @@ p { margin: 0; }
   border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
 }
 .panel header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 14px 8px; }
+.panel header .ttl { flex: 1; }
+.ib.install { background: var(--accent); color: #fff; border-color: var(--accent); }
 .panel h1 { font-size: 16px; margin: 0; letter-spacing: .01em; }
 .panel section { padding: 8px 14px 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
 .panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0; }
@@ -148,6 +150,7 @@ select, input[type=text] { font: inherit; font-size: 13px; padding: 4px 6px; bor
 <div class="panel" id="panel">
   <header>
     <div class="ttl"><h1>Rennrad Hoamat</h1><img class="logo" src="icons/icon.svg" alt="" width="24" height="24"><span id="zoomBadge" class="zb" role="status"></span></div>
+    <button class="ib sm install" id="installBtn" type="button" hidden data-icon="install" title="Als App auf diesem PC installieren" aria-label="Als App auf diesem PC installieren"></button>
     <button class="ib sm" id="collapse" type="button" aria-expanded="true" data-icon="chevronUp" title="Panel einklappen" aria-label="Panel einklappen"></button>
   </header>
 
@@ -391,6 +394,7 @@ const ICON = {
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   chevronUp: '<path d="m6 15 6-6 6 6"/>',
   refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',
+  install: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M12 7v6M9 10.5 12 13l3-2.5"/>',
 };
 const svgIcon = n => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 function setIconBtn(b, icon, label) { b.innerHTML = svgIcon(icon); b.title = label; b.setAttribute('aria-label', label); }
@@ -1919,6 +1923,16 @@ function start() {
   onViewChange();
   if (wantSelfTest) runSelfTest();
 }
+// Installieren als App: Chrome meldet, dass die Seite installierbar ist → grüner Knopf im Panel-Kopf
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; $('installBtn').hidden = false; });
+window.addEventListener('appinstalled', () => { installPrompt = null; $('installBtn').hidden = true; });
+$('installBtn').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => {});
+  installPrompt = null; $('installBtn').hidden = true;
+});
 window.RH = { classifyOsm, classifyWay, classifyCount, normRef, classifyArea, checkLine, SegGrid, selfTest, stations, tiles };
 start();
 </script>
