@@ -2,7 +2,7 @@
 // Programmdateien: zuerst aus dem Netz (damit Aktualisierungen sofort ankommen), ohne Netz aus dem Vorrat.
 // Leaflet vom CDN: aus dem Vorrat. Wegdaten, Zählungen und Routing laufen immer direkt übers Netz;
 // die Wegdaten speichert die Seite selbst (IndexedDB).
-const VERSION = 'rh-2';
+const VERSION = 'rh-3';
 const APP = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png'];
 const LIB = [
   'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css',

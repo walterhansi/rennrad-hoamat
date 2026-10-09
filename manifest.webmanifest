@@ -3,7 +3,7 @@
   "short_name": "Rennrad Hoamat",
   "description": "Karte für verkehrsscheue Rennradfahrer: asphaltierte, verkehrsarme Wege nach OpenStreetMap und amtlichen Verkehrszählungen.",
   "lang": "de",
-  "id": "./",
+  "id": "/rennrad-hoamat/",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
