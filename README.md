@@ -5,7 +5,9 @@ Sie färbt asphaltierte Wege nach Verkehrsaufkommen ein (OpenStreetMap und amtli
 zeigt eigene und geladene GPX-Tracks und markiert mit dem Track-Check Abschnitte abseits geeigneter Wege.
 
 **Öffnen und installieren:** https://walterhansi.github.io/rennrad-hoamat/
-In Chrome erscheint rechts in der Adresszeile das Symbol „App installieren“.
+Installieren: grüner Knopf oben rechts im Panel.
+
+**Anleitung:** https://walterhansi.github.io/rennrad-hoamat/anleitung.html
 
 ## Daten
 - Wegdaten © OpenStreetMap-Mitwirkende (ODbL)

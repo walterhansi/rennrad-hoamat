@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rennrad Hoamat – Anleitung</title>
+<meta name="description" content="Anleitung für Rennrad Hoamat: ruhige, asphaltierte Rennradrunden am PC planen und vorhandene Tracks prüfen.">
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;700;800&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fbfaf7; --bg2: #f1efe9; --card: #ffffff; --fg: #18211c; --muted: #5b665f; --line: #e3e0d8;
+  --green: #0a7d4f; --green-soft: #e3f2ea; --orange: #f26a00; --orange-soft: #fff0e3; --blue: #0098d4; --navy: #0b2a4a; --chk: #1557ff;
+  --c1: #0a7d4f; --c1b: #62b98d; --c2: #2f86c9; --c3: #e8a12b; --c4: #e0612f; --c5: #b3202a; --c6a: #1d1d1d; --c6b: #f2c230; --hint: #e0219a; --gpx: #7a1fd1; --draw: #39ff14;
+  --radius: 16px; --shadow: 0 1px 2px rgba(20,30,25,.06), 0 8px 30px rgba(20,30,25,.08);
+  --head: "Outfit", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #121614; --bg2: #1a201d; --card: #1e2522; --fg: #e9ede9; --muted: #a2ada6; --line: #2f3833;
+    --green: #3fbf86; --green-soft: #183327; --orange: #ff8a2b; --orange-soft: #3a2614; --navy: #9cc4ec; color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 18px/1.65 var(--body); -webkit-font-smoothing: antialiased; }
+img { max-width: 100%; height: auto; display: block; }
+a { color: var(--green); text-underline-offset: 3px; }
+h1, h2, h3 { font-family: var(--head); line-height: 1.15; letter-spacing: -.01em; margin: 0; }
+h2 { font-size: clamp(28px, 3.4vw, 38px); font-weight: 800; }
+h3 { font-size: 21px; font-weight: 700; margin-top: 28px; }
+p { margin: 12px 0; }
+strong { font-weight: 700; }
+kbd { font: 600 14px/1 var(--body); padding: 3px 7px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 6px; background: var(--card); }
+
+/* Kopfbereich */
+.hero { position: relative; overflow: hidden; background: var(--navy); color: #fff; }
+@media (prefers-color-scheme: dark) { .hero { background: #0b2a4a; } }
+.hero::before { content: ""; position: absolute; inset: 0; opacity: .16;
+  background-image: repeating-linear-gradient(56deg, transparent 0 22px, rgba(0,152,212,1) 22px 44px), repeating-linear-gradient(-34deg, transparent 0 22px, rgba(255,255,255,.9) 22px 44px); }
+.hero::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(11,42,74,.98) 30%, rgba(11,42,74,.6) 70%, rgba(11,42,74,.25)); }
+.hero-in { position: relative; z-index: 1; max-width: 1180px; margin: 0 auto; padding: 72px 24px 80px; display: grid; grid-template-columns: 1fr auto; gap: 40px; align-items: center; }
+.hero .kicker { font: 700 14px/1 var(--head); letter-spacing: .14em; text-transform: uppercase; color: #ffb36b; }
+.hero h1 { font-size: clamp(40px, 6vw, 72px); font-weight: 800; margin: 14px 0 0; }
+.hero h1 span { color: #ff8a2b; }
+.hero .lead { font-size: clamp(19px, 2vw, 23px); max-width: 640px; color: #dce8f2; margin: 18px 0 30px; }
+.hero-icon { width: clamp(120px, 16vw, 200px); border-radius: 22%; box-shadow: 0 20px 50px rgba(0,0,0,.35); transform: rotate(-4deg); }
+.btns { display: flex; flex-wrap: wrap; gap: 12px; }
+.btn { display: inline-flex; align-items: center; gap: 10px; padding: 13px 22px; border-radius: 999px; font: 700 17px/1 var(--head); text-decoration: none; transition: transform .15s; }
+.btn:hover { transform: translateY(-2px); }
+.btn.main { background: var(--orange); color: #fff; }
+.btn.ghost { color: #fff; border: 2px solid rgba(255,255,255,.4); }
+.btn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+@media (max-width: 760px) { .hero-in { grid-template-columns: 1fr; padding: 48px 20px 56px; } .hero-icon { width: 96px; order: -1; } }
+
+/* Seitenaufbau mit Inhaltsverzeichnis */
+.layout { max-width: 1180px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 240px 1fr; gap: 56px; }
+.toc { position: sticky; top: 24px; align-self: start; padding: 32px 0; max-height: 100vh; overflow: auto; }
+.toc b { display: block; font: 700 13px/1 var(--head); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
+.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: t; }
+.toc li { counter-increment: t; }
+.toc a { display: flex; gap: 10px; padding: 6px 10px; border-radius: 8px; color: var(--fg); text-decoration: none; font-size: 15.5px; line-height: 1.35; }
+.toc a::before { content: counter(t, decimal-leading-zero); font: 700 12px/1.6 var(--head); color: var(--muted); }
+.toc a:hover, .toc a.on { background: var(--green-soft); color: var(--green); }
+main { min-width: 0; padding: 24px 0 80px; }
+section { padding: 48px 0 8px; border-bottom: 1px solid var(--line); }
+section:last-of-type { border-bottom: 0; }
+.eyebrow { font: 700 13px/1 var(--head); letter-spacing: .14em; text-transform: uppercase; color: var(--orange); margin-bottom: 10px; display: block; }
+.intro { font-size: 20px; color: var(--muted); max-width: 760px; }
+@media (max-width: 980px) { .layout { grid-template-columns: 1fr; gap: 0; } .toc { position: static; max-height: none; padding: 24px 0 0; } .toc ol { columns: 2; } }
+@media (max-width: 560px) { body { font-size: 17px; } .layout { padding: 0 16px; } .toc ol { columns: 1; } }
+
+/* Bausteine */
+.grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); margin: 22px 0; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow); }
+.card h4 { font: 700 18px/1.25 var(--head); margin: 0 0 6px; }
+.card p { margin: 0; font-size: 16.5px; color: var(--muted); }
+.card .ic { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--green-soft); color: var(--green); margin-bottom: 12px; }
+.card .ic svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.card.warn .ic { background: var(--orange-soft); color: var(--orange); }
+.callout { display: grid; grid-template-columns: 40px 1fr; gap: 14px; background: var(--green-soft); border-radius: var(--radius); padding: 18px 22px; margin: 22px 0; }
+.callout.o { background: var(--orange-soft); }
+.callout svg { width: 28px; height: 28px; fill: none; stroke: var(--green); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-top: 3px; }
+.callout.o svg { stroke: var(--orange); }
+.callout p { margin: 0; }
+.callout p + p { margin-top: 8px; }
+
+figure { margin: 26px 0; }
+figure .frame { border-radius: var(--radius); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); background: var(--card); position: relative; }
+figure.small { max-width: 420px; }
+figcaption { font-size: 15px; color: var(--muted); margin-top: 10px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin: 26px 0; }
+.pair figure { margin: 0; }
+@media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+.tag { display: inline-block; font: 700 12px/1 var(--head); letter-spacing: .08em; text-transform: uppercase; padding: 5px 9px; border-radius: 999px; margin-bottom: 8px; }
+.tag.bad { background: #e8eeff; color: var(--chk); }
+.tag.good { background: var(--green-soft); color: var(--green); }
+
+/* nummerierte Markierungen auf Bildern */
+.pin { position: absolute; width: 30px; height: 30px; border-radius: 50%; background: var(--orange); color: #fff; font: 800 15px/30px var(--head); text-align: center; box-shadow: 0 0 0 3px #fff, 0 4px 12px rgba(0,0,0,.3); transform: translate(-50%, -50%); }
+.legendlist { list-style: none; padding: 0; margin: 14px 0; counter-reset: p; }
+.legendlist li { counter-increment: p; display: grid; grid-template-columns: 30px 1fr; gap: 12px; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.legendlist li::before { content: counter(p); width: 26px; height: 26px; border-radius: 50%; background: var(--orange); color: #fff; font: 800 13px/26px var(--head); text-align: center; margin-top: 2px; }
+
+/* Schritte */
+.steps { list-style: none; padding: 0; margin: 24px 0; counter-reset: s; display: grid; gap: 14px; }
+.steps > li { counter-increment: s; position: relative; padding: 18px 22px 18px 74px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); }
+.steps > li::before { content: counter(s); position: absolute; left: 20px; top: 18px; width: 38px; height: 38px; border-radius: 12px; background: var(--green); color: #fff; font: 800 18px/38px var(--head); text-align: center; }
+.steps > li > strong:first-child { display: block; font: 700 19px/1.3 var(--head); margin-bottom: 4px; }
+.steps p { margin: 6px 0 0; }
+.steps figure { margin: 14px 0 4px; }
+
+/* Legende nachgebaut */
+.leg { display: grid; gap: 10px; margin: 20px 0; }
+.leg > div { display: grid; grid-template-columns: 70px 1fr; gap: 18px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 18px; }
+.leg i { display: block; height: 6px; border-radius: 3px; }
+.leg b { font-family: var(--head); }
+.leg span { display: block; font-size: 16px; color: var(--muted); }
+.dash { background: repeating-linear-gradient(90deg, var(--x) 0 10px, transparent 10px 15px) !important; }
+
+/* Gebiete */
+.tiers { display: grid; gap: 14px; margin: 22px 0; }
+.tier { display: grid; grid-template-columns: 120px 1fr; gap: 18px; align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 22px; box-shadow: var(--shadow); }
+.stars { font-size: 24px; letter-spacing: 2px; color: var(--orange); white-space: nowrap; }
+.stars s { color: var(--line); text-decoration: none; }
+.tier h4 { font: 700 19px/1.25 var(--head); margin: 0 0 4px; }
+.tier p { margin: 0; font-size: 16.5px; color: var(--muted); }
+@media (max-width: 560px) { .tier { grid-template-columns: 1fr; gap: 6px; } }
+
+/* Ablauf-Skizze */
+.flow { margin: 26px 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
+.flow svg { width: 100%; height: auto; display: block; }
+.flow text { font-family: var(--body); fill: var(--fg); }
+
+details { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 0 20px; margin: 10px 0; }
+details[open] { padding-bottom: 14px; }
+summary { cursor: pointer; list-style: none; font: 700 18px/1.35 var(--head); padding: 16px 0; display: flex; justify-content: space-between; gap: 14px; }
+summary::-webkit-details-marker { display: none; }
+summary::after { content: "+"; font-size: 24px; line-height: 1; color: var(--green); transition: transform .2s; }
+details[open] summary::after { transform: rotate(45deg); }
+details p { margin: 4px 0 8px; color: var(--muted); }
+
+ul.check { list-style: none; padding: 0; margin: 14px 0; }
+ul.check li { position: relative; padding-left: 30px; margin: 8px 0; }
+ul.check li::before { content: ""; position: absolute; left: 2px; top: 8px; width: 14px; height: 8px; border-left: 3px solid var(--green); border-bottom: 3px solid var(--green); transform: rotate(-45deg); }
+ul.cross li::before { border: 0; width: 16px; height: 16px; top: 6px; transform: none; background: linear-gradient(45deg, transparent 43%, var(--orange) 43% 57%, transparent 57%), linear-gradient(-45deg, transparent 43%, var(--orange) 43% 57%, transparent 57%); }
+
+footer { background: var(--bg2); border-top: 1px solid var(--line); padding: 36px 24px; text-align: center; font-size: 15px; color: var(--muted); }
+footer img { width: 40px; margin: 0 auto 10px; border-radius: 22%; }
+
+@media print {
+  .toc, .btns, .hero::before { display: none !important; }
+  .hero { background: none; color: #000; } .hero::after { display: none; } .hero .lead { color: #333; }
+  .layout { display: block; } section { break-inside: avoid-page; }
+  details { border: 0; } details > *:not(summary) { display: block; } summary::after { display: none; }
+  .card, .steps > li, figure .frame { box-shadow: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-in">
+    <div>
+      <div class="kicker">Anleitung</div>
+      <h1>Rennrad <span>Hoamat</span></h1>
+      <p class="lead">Ruhige, asphaltierte Rennradrunden planen – für alle, die lieber an Kühen vorbeirollen als an Lastwagen.</p>
+      <div class="btns">
+        <a class="btn main" href="./" target="_blank" rel="noopener"><svg viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg>App öffnen</a>
+        <a class="btn ghost" href="#schnellstart">Schnellstart in 5 Schritten</a>
+      </div>
+    </div>
+    <img class="hero-icon" src="icons/icon.svg" alt="">
+  </div>
+</header>
+
+<div class="layout">
+  <nav class="toc" aria-label="Inhalt">
+    <b>Inhalt</b>
+    <ol>
+      <li><a href="#fuer-wen">Für wen ist die App?</a></li>
+      <li><a href="#pc">Am PC planen, am Rad fahren</a></li>
+      <li><a href="#gebiete">Wo sie am besten funktioniert</a></li>
+      <li><a href="#nicht">Für wen sie eher nichts ist</a></li>
+      <li><a href="#koennen">Was du damit machen kannst</a></li>
+      <li><a href="#schnellstart">Schnellstart</a></li>
+      <li><a href="#installieren">Installieren</a></li>
+      <li><a href="#karte">Die Karte lesen</a></li>
+      <li><a href="#planen">Runde planen</a></li>
+      <li><a href="#pruefen">Vorhandenen Track prüfen</a></li>
+      <li><a href="#aufsrad">Vom PC aufs Rad</a></li>
+      <li><a href="#tipps">Tipps und Kniffe</a></li>
+      <li><a href="#fragen">Häufige Fragen</a></li>
+      <li><a href="#grenzen">Grenzen und Quellen</a></li>
+    </ol>
+  </nav>
+
+<main>
+
+<section id="fuer-wen">
+  <span class="eyebrow">01 · Zielgruppe</span>
+  <h2>Für wen ist Rennrad Hoamat gedacht?</h2>
+  <p class="intro">Für Rennradfahrerinnen und Rennradfahrer, die Asphalt lieben und Autoverkehr meiden. Die Geschwindigkeit ist dabei zweitrangig: Wichtig ist, dass die Fahrt Freude macht und man sich sicher fühlt.</p>
+  <div class="grid">
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.3 1.5 3.5 1.5 3.5-1.5 3.5-1.5M9 9.5h.01M15 9.5h.01"/></svg></div><h4>Genussfahrer</h4><p>Wer die Landschaft genießen will statt auf den Rückspiegel zu achten.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6Z"/></svg></div><h4>Sicherheitsbewusste</h4><p>Wiedereinsteiger, Ältere, Jugendliche – und alle, die schon einmal zu knapp überholt wurden.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 14.5c3 0 6 1.5 6 5"/></svg></div><h4>Ausfahrtenleiter im Verein</h4><p>Eine Gruppe braucht ruhige Straßen noch dringender als ein Einzelner.</p></div>
+  </div>
+
+  <h3>Warum es dafür kaum Hilfe gibt</h3>
+  <p>Ruhige Straßen sind schwer zu finden, denn die gängigen Werkzeuge schauen auf etwas anderes:</p>
+  <ul class="check">
+    <li><strong>Routenplaner</strong> wählen die schnellste oder kürzeste asphaltierte Strecke. Wie viel Verkehr auf einer Straße fährt, wissen sie meist nicht. Sie schätzen nur grob nach der Straßenart.</li>
+    <li><strong>Beliebtheitskarten</strong> zeigen, wo viele Radfahrer unterwegs sind. Das sind oft gerade die schnellen Staatsstraßen, nicht die stillen Wege.</li>
+    <li><strong>Radwegekarten</strong> sind für Alltags- und Tourenradler gemacht. Für das Rennrad stecken darin zu viel Schotter, Pflaster und Radwege mit Einfahrten alle paar Meter.</li>
+    <li><strong>Amtliche Verkehrszählungen</strong> gibt es zwar, aber gut versteckt in Fachportalen der Straßenbauverwaltungen.</li>
+  </ul>
+  <p>Rennrad Hoamat führt das zusammen. Die Karte färbt jeden Weg nach Belag und Verkehrsmenge ein und nutzt dafür amtliche Zählungen, wo es sie gibt.</p>
+
+  <h3>Wann dir die App hilft</h3>
+  <div class="grid">
+    <div class="card"><h4>Neue Hausrunde</h4><p>Raus aus dem Trott – ohne Experimente auf der Bundesstraße.</p></div>
+    <div class="card"><h4>Urlaub und Trainingslager</h4><p>Unbekannte Gegend, zum Beispiel in Südtirol: Vorher sehen, wo es ruhig ist.</p></div>
+    <div class="card"><h4>Vereinsausfahrt</h4><p>Eine Gruppenrunde vorbereiten, die alle entspannt fahren können.</p></div>
+    <div class="card"><h4>Fremde Tracks</h4><p>Ein Freund schickt eine GPX-Datei? In einer Minute siehst du, wo es heikel wird.</p></div>
+  </div>
+</section>
+
+<section id="pc">
+  <span class="eyebrow">02 · Arbeitsweise</span>
+  <h2>Am PC planen, am Rad fahren</h2>
+  <p class="intro">Rennrad Hoamat ist ein Planungswerkzeug für den Schreibtisch. Auf dem Handy lässt es sich zwar öffnen, sinnvoll ist das aber kaum.</p>
+  <div class="grid">
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><h4>Großer Bildschirm</h4><p>Erst auf einem großen Bildschirm siehst du die vielen Farben und Wege in einer Gegend im Zusammenhang.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="6"/><path d="M12 7v4"/></svg></div><h4>Maus statt Finger</h4><p>Wegpunkte setzt und verschiebst du mit der Maus genau auf den richtigen Weg.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6"/></svg></div><h4>GPX-Dateien</h4><p>Tracks speichern und öffnen geht am PC am einfachsten.</p></div>
+    <div class="card warn"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11Z"/><path d="M4 4l16 16"/></svg></div><h4>Keine Navigation</h4><p>Unterwegs gibt es weder Ansagen noch deinen Standort. Dafür ist dein Radnavi da.</p></div>
+  </div>
+  <div class="flow" role="img" aria-label="Ablauf: am PC planen, GPX-Datei speichern, auf das Navigationsgerät übertragen, losfahren">
+    <svg viewBox="0 0 900 170">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="#f26a00"/></marker></defs>
+      <g fill="none" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="40" y="30" width="150" height="92" rx="10" stroke="#0b2a4a"/><path d="M90 140h50M115 122v18" stroke="#0b2a4a"/>
+        <path d="M58 100 L88 70 L118 86 L150 52 L172 64" stroke="#39ff14" stroke-width="6"/>
+        <path d="M330 34h56l26 26v66a8 8 0 0 1-8 8h-74a8 8 0 0 1-8-8V42a8 8 0 0 1 8-8Z" stroke="#0b2a4a"/><path d="M386 34v26h26" stroke="#0b2a4a"/>
+        <rect x="560" y="26" width="84" height="120" rx="16" stroke="#0b2a4a"/><path d="M576 102 L594 78 L612 90 L628 60" stroke="#7a1fd1" stroke-width="5"/>
+        <circle cx="770" cy="104" r="34" stroke="#f26a00"/><circle cx="858" cy="104" r="34" stroke="#f26a00"/><path d="M770 104 L806 106 L796 58 Z M796 58 L842 56 L806 106 M842 56 L858 104" stroke="#f26a00"/>
+        <path d="M210 78h90M432 78h100M664 78h56" stroke="#f26a00" stroke-dasharray="2 10" marker-end="url(#ar)"/>
+      </g>
+      <text x="370" y="96" text-anchor="middle" font-size="22" font-weight="700" fill="#0b2a4a">GPX</text>
+      <g font-size="19" font-weight="600" text-anchor="middle"><text x="115" y="166">Am PC planen</text><text x="370" y="166">GPX speichern</text><text x="602" y="166">Aufs Navi</text><text x="814" y="166">Losfahren</text></g>
+    </svg>
+  </div>
+</section>
+
+<section id="gebiete">
+  <span class="eyebrow">03 · Gebiete</span>
+  <h2>Wo die App am besten funktioniert</h2>
+  <p class="intro">Belag und Wegeart kommen überall aus OpenStreetMap. Den Unterschied macht die Verkehrsmenge: Je mehr echte Zählungen es gibt, desto verlässlicher sind die Farben.</p>
+  <div class="tiers">
+    <div class="tier"><div class="stars">★★★</div><div><h4>Bayern</h4><p>Am besten: Die amtliche Verkehrszählung liegt für ganze Straßenabschnitte vor, mit Lkw- und Motorradanteil und dem Verkehr am Sonntag.</p></div></div>
+    <div class="tier"><div class="stars">★★<s>★</s></div><div><h4>Baden-Württemberg und Südtirol</h4><p>Gut: Zählstellen an den Bundes-, Landes- und Kreisstraßen. Ihr Wert gilt für den Straßenzug bis zur nächsten größeren Einmündung.</p></div></div>
+    <div class="tier"><div class="stars">★<s>★★</s></div><div><h4>Tirol, Salzburg und alle anderen Gegenden</h4><p>Brauchbar: Hier gibt es keine Zählungen. Der Verkehr wird aus der Straßenart geschätzt, also Kreisstraße mäßig und Staats- oder Bundesstraße viel. Die amtliche graue Hintergrundkarte gibt es für Deutschland, Österreich und Südtirol.</p></div></div>
+  </div>
+</section>
+
+<section id="nicht">
+  <span class="eyebrow">04 · Ehrlich gesagt</span>
+  <h2>Für wen die App eher nichts ist</h2>
+  <ul class="check cross">
+    <li><strong>Gravel- und Mountainbike-Fahrer:</strong> Schotter und Feldwege blendet die App bewusst aus.</li>
+    <li><strong>Wer unterwegs navigieren will:</strong> Es gibt keine Ansagen und keinen Standort, die App ist ein Planungswerkzeug.</li>
+    <li><strong>Wer die schnellste Strecke sucht:</strong> Ruhige Wege sind oft ein paar Kilometer länger.</li>
+    <li><strong>Wer nach Höhenmetern plant:</strong> Ein Höhenprofil oder Steigungsangaben bietet die App nicht. Die Gesamthöhenmeter einer Runde zeigt sie nur, wenn die Daten sie liefern.</li>
+    <li><strong>Pendler, die jeden Tag in die Stadt fahren:</strong> Für den Stadtverkehr ist die App nicht gemacht.</li>
+    <li><strong>Wer weit außerhalb von Bayern, Baden-Württemberg und dem Alpenraum fährt:</strong> Dort sind die Farben nur Schätzungen.</li>
+  </ul>
+</section>
+
+<section id="koennen">
+  <span class="eyebrow">05 · Möglichkeiten</span>
+  <h2>Was du damit machen kannst</h2>
+  <div class="grid">
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3Z"/><path d="M9 3v15M15 6v15"/></svg></div><h4>Wege erkennen</h4><p>Jeder befahrbare Weg ist nach Belag und Verkehr eingefärbt, von „autofrei“ bis „viel Verkehr“.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></div><h4>Runden zeichnen</h4><p>Punkte setzen, die Route folgt den Straßen, und den Track speicherst du als GPX-Datei.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/></svg></div><h4>Tracks anzeigen</h4><p>Vorhandene GPX-Dateien legst du kräftig violett über die Karte.</p></div>
+    <div class="card"><div class="ic" style="background:#e8eeff;color:var(--chk)"><svg viewBox="0 0 24 24"><path d="M4 17c4-1 6-8 9-8s4 5 7 4"/><path d="M9 12l2 2 4-4"/></svg></div><h4>Track-Check</h4><p>Weiß mit blauem Rand markiert die App jede Stelle, an der ein Track deine gewünschten Wege verlässt.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg></div><h4>Details abfragen</h4><p>Ein Klick auf einen Weg zeigt Belag, Kfz pro Tag, Lkw-Anteil und den Verkehr am Sonntag.</p></div>
+    <div class="card"><div class="ic"><svg viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></div><h4>Kurz drunterschauen</h4><p>Tracks ausblenden, um zu sehen, was unter ihnen liegt.</p></div>
+  </div>
+</section>
+
+<section id="schnellstart">
+  <span class="eyebrow">06 · Schnellstart</span>
+  <h2>In 5 Schritten zur ersten Runde</h2>
+  <ol class="steps">
+    <li><strong>App öffnen</strong>Öffne <a href="./" target="_blank" rel="noopener">walterhansi.github.io/rennrad-hoamat</a> am PC.</li>
+    <li><strong>Hinzoomen</strong>Zoome in deine Gegend, bis neben dem Titel ein <span style="color:var(--green)">●</span> grüner Punkt erscheint. Dann färbt die App die Wege ein.</li>
+    <li><strong>Unerwünschtes ausblenden</strong>Entferne in der Legende die Häkchen bei „Spürbarer Verkehr“, „Viel Verkehr“ und „Belag ungeeignet“.</li>
+    <li><strong>Runde zeichnen</strong>Klicke auf den Stift unter „Track zeichnen“ und dann nacheinander in die Karte. Gibt es weiß-blaue Markierungen, setzt du einen Punkt um.</li>
+    <li><strong>Speichern</strong>Gib der Runde einen Namen und klicke auf den grünen Pfeil nach unten. Die GPX-Datei spielst du auf dein Navi.</li>
+  </ol>
+</section>
+
+<section id="installieren">
+  <span class="eyebrow">07 · Einrichten</span>
+  <h2>Als App installieren</h2>
+  <p class="intro">Installieren ist kein Muss, aber bequem: Rennrad Hoamat startet dann aus dem Startmenü in einem eigenen Fenster, ganz ohne Browserleiste.</p>
+  <ol class="steps">
+    <li><strong>Seite im Browser öffnen</strong><a href="./" target="_blank" rel="noopener">walterhansi.github.io/rennrad-hoamat</a> – am besten in Chrome oder Edge.</li>
+    <li><strong>Auf den grünen Knopf klicken</strong>Oben rechts im Panel erscheint ein grüner Knopf mit Bildschirm-Symbol. Ein Klick darauf, dann „Installieren“.
+      <figure class="small"><div class="frame"><img src="anleitung/kopf.webp" width="760" height="92" alt="Kopf des Panels: Titel, Icon, Zoomanzeige, grüner Installieren-Knopf, Fragezeichen und Pfeil"></div><figcaption>Grüner Knopf = installieren · <b>?</b> = diese Anleitung · Pfeil = Panel einklappen</figcaption></figure>
+    </li>
+    <li><strong>Fertig</strong>Rennrad Hoamat steht jetzt im Startmenü und lässt sich an die Taskleiste heften.</li>
+  </ol>
+  <div class="callout"><svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg><div><p><strong>Aktualisierungen kommen von selbst.</strong> Beim nächsten Start lädt die App eine neue Version, du musst nichts tun.</p></div></div>
+</section>
+
+<section id="karte">
+  <span class="eyebrow">08 · Orientierung</span>
+  <h2>Die Karte lesen</h2>
+  <figure>
+    <div class="frame">
+      <img src="anleitung/uebersicht.webp" width="1600" height="857" alt="Rennrad Hoamat mit eingefärbten Wegen und geöffneter Legende" loading="lazy">
+      <span class="pin" style="left:5.2%;top:7.5%">1</span>
+      <span class="pin" style="left:36%;top:21.2%">2</span>
+      <span class="pin" style="left:90.5%;top:9.7%">3</span>
+      <span class="pin" style="left:75.2%;top:17.2%">4</span>
+    </div>
+    <figcaption>Beispielansicht mit Testdaten, ohne Hintergrundkarte</figcaption>
+  </figure>
+  <ol class="legendlist">
+    <li><span><strong>Zoom:</strong> mit dem Mausrad oder den Knöpfen + und −. Darunter wählst du die Hintergrundkarte: „Amtlich grau“ ist ruhig und passt am besten, OpenTopoMap zeigt Höhenlinien.</span></li>
+    <li><span><strong>Eingefärbte Wege:</strong> Ein Klick auf einen Weg öffnet ein Fenster mit Belag, Kfz pro Tag, Lkw- und Motorradanteil.</span></li>
+    <li><span><strong>Zoomanzeige:</strong> Bei <span style="color:var(--green)">●</span> grün siehst du die Wege. Bei <span style="color:var(--c5)">●</span> rot ist der Ausschnitt zu groß, dann einfach näher heranzoomen.</span></li>
+    <li><span><strong>Legende:</strong> Jedes Häkchen blendet eine Wegart ein oder aus. Was du hier ausschaltest, gilt auch für den Track-Check.</span></li>
+  </ol>
+
+  <h3>Was die Farben draußen bedeuten</h3>
+  <div class="leg">
+    <div><i style="background:var(--c1)"></i><div><b>Autofrei, asphaltiert</b><span>Wirtschaftswege und Radwege abseits der Straße – meist traumhaft. Hat die Linie kurze Lücken, ist der Belag nicht angegeben, wahrscheinlich aber fest.</span></div></div>
+    <div><i style="background:var(--c1b);height:4px"></i><div><b>Autofrei, aber langsam</b><span>Ein Radweg direkt neben der Straße oder ein Gehweg mit „Rad frei“. Rechne mit Einfahrten, Querungen und Fußgängern.</span></div></div>
+    <div><i style="background:var(--c2)"></i><div><b>Ruhig</b><span>Gemeindestraßen und Fahrradstraßen: ab und zu ein Auto, aber kein Durchgangsverkehr.</span></div></div>
+    <div><i style="background:var(--c3)"></i><div><b>Mäßiger Verkehr</b><span>1.000 bis 2.500 Autos am Tag. Gut fahrbar, aber du bist nicht allein.</span></div></div>
+    <div><i class="dash" style="--x:var(--c4)"></i><div><b>Spürbarer Verkehr</b><span>2.500 bis 5.000 Autos am Tag. Für kurze Verbindungsstücke okay.</span></div></div>
+    <div><i class="dash" style="--x:var(--c5)"></i><div><b>Viel Verkehr</b><span>Über 5.000 Autos am Tag – Staats- und Bundesstraßen. Wenn möglich meiden.</span></div></div>
+    <div><i style="background:repeating-linear-gradient(90deg,var(--c6a) 0 8px,var(--c6b) 8px 16px)"></i><div><b>Belag ungeeignet</b><span>Pflaster, Kopfstein, Schotter oder holpriger Asphalt.</span></div></div>
+    <div><i style="background:repeating-linear-gradient(90deg,var(--hint) 0 4px,transparent 4px 10px);height:4px"></i><div><b>Hinweis: viele Lkw oder Motorräder</b><span>Liegt als dünne Linie über anderen Farben. Die Straße ist vielleicht ruhig, aber laut oder einschüchternd.</span></div></div>
+  </div>
+</section>
+
+<section id="planen">
+  <span class="eyebrow">09 · Herzstück</span>
+  <h2>Eine Runde planen, die nur über gute Wege führt</h2>
+  <p class="intro">So legst du eine Strecke an, die nach den verfügbaren Daten nur über asphaltierte Wege mit wenig Autoverkehr führt. Der Track-Check zeigt dir jede Stelle, an der das noch nicht stimmt.</p>
+  <ol class="steps">
+    <li><strong>Gegend ansteuern</strong>Zoome heran, bis die Zoomanzeige grün ist. Schiebe die Karte an deinen Startort.</li>
+    <li><strong>Festlegen, was erlaubt ist</strong>Entferne in der Legende die Häkchen bei allem, was du nicht fahren willst. Für eine ganz ruhige Runde sind das „Spürbarer Verkehr“, „Viel Verkehr“ und „Belag ungeeignet“. Wer auch Radwege an der Straße meiden will, schaltet zusätzlich „Autofrei, aber langsam“ aus. Was übrig bleibt, ist dein Wegenetz.
+      <figure class="small"><div class="frame"><img src="anleitung/legende.webp" width="660" height="1242" alt="Legende mit ausgeschalteten Klassen „Spürbarer Verkehr“ und „Viel Verkehr“" loading="lazy" style="max-height:520px;object-fit:cover;object-position:top"></div><figcaption>Jedes Häkchen ist ein Schalter.</figcaption></figure>
+    </li>
+    <li><strong>Zeichnen einschalten</strong>Klicke unter „Track zeichnen“ auf den Stift; er wird dunkelgrün. Wähle in der Liste daneben „Straßen folgen: Rennrad, sehr wenig Verkehr“.
+      <figure class="small"><div class="frame"><img src="anleitung/zeichnen-panel.webp" width="660" height="514" alt="Bereich Track zeichnen mit Stift, Auswahl, Zurück, Löschen, Name und Speichern" loading="lazy"></div><figcaption>Stift · Routenart · Zurück · Löschen · Name · Speichern</figcaption></figure>
+    </li>
+    <li><strong>Punkte setzen</strong>Klicke auf den Startpunkt und dann nacheinander auf Wege, die in deiner Legende eingeschaltet sind. Die Route folgt automatisch den Straßen und erscheint leuchtend grün. Tipp: Lieber ein paar Punkte mehr setzen und sie direkt auf die gewünschten Wege legen.</li>
+    <li><strong>Den Track-Check lesen</strong>Wo die Route einen eingeschalteten Weg verlässt, erscheint eine <strong>dicke weiße Linie mit blauem Rand</strong>. Unter dem Track steht, wie viele Stellen es sind.
+      <figure><div class="frame"><img src="anleitung/planen-vorher.webp" width="1600" height="941" alt="Geplante Route mit zwei weiß-blau markierten Stellen auf einer ausgeblendeten Staatsstraße" loading="lazy"></div><figcaption><span class="tag bad">Vorher</span><br>Die Route nimmt die Staatsstraße. Die ist ausgeblendet, deshalb markiert der Track-Check die Stelle.</figcaption></figure>
+    </li>
+    <li><strong>Korrigieren</strong>Setze einen Zwischenpunkt auf einen eingeschalteten Weg daneben oder ziehe einen vorhandenen Punkt dorthin. Ein Klick auf einen Punkt löscht ihn, und der Pfeil nach links nimmt den letzten Punkt zurück. Wiederhole das, bis unter dem Track „komplett auf eingeschalteten Wegen“ steht.
+      <figure><div class="frame"><img src="anleitung/planen-nachher.webp" width="1600" height="941" alt="Korrigierte Route über Gemeindestraße und Wirtschaftsweg, Track-Check meldet komplett auf eingeschalteten Wegen" loading="lazy"></div><figcaption><span class="tag good">Nachher</span><br>Ein Zwischenpunkt lenkt die Runde über die Gemeindestraße und den Wirtschaftsweg. Keine Markierung mehr.</figcaption></figure>
+    </li>
+    <li><strong>Zweifelsfälle anschauen</strong>Klicke auf Wege, die dir unbekannt sind: Das Fenster zeigt den Belag und, wo vorhanden, die Zählwerte. Bei grünen Linien mit kurzen Lücken ist der Belag nicht eingetragen. Im Zweifel hilft der Link „In OpenStreetMap ansehen“.</li>
+    <li><strong>Speichern</strong>Gib unten einen Namen ein und klicke auf den grünen Pfeil nach unten. Deine Runde liegt jetzt als GPX-Datei auf dem PC.</li>
+  </ol>
+  <div class="callout o"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg><div><p><strong>So gut wie die Daten.</strong> Belag und Wegeart stammen aus OpenStreetMap, einer Karte von Freiwilligen. Sie ist meist sehr genau, aber eine frisch geschotterte Baustelle oder ein neues Verbot kann fehlen.</p><p>„Komplett auf eingeschalteten Wegen“ heißt deshalb: nach bestem Wissen geeignet, aber ohne Garantie. Die Verkehrsregeln vor Ort gelten immer.</p></div></div>
+</section>
+
+<section id="pruefen">
+  <span class="eyebrow">10 · Prüfen</span>
+  <h2>Einen vorhandenen Track prüfen</h2>
+  <p class="intro">Eine GPX-Datei aus dem Verein, von Freunden oder aus einem Tourenportal? So siehst du in einer Minute, ob sie rennradtauglich ist.</p>
+  <ol class="steps">
+    <li><strong>Datei laden</strong>Klicke unter „GPX-Datei anzeigen“ auf das Ordner-Symbol oder ziehe die Datei einfach auf die Karte. Der Track erscheint kräftig violett, und die Karte springt dorthin.</li>
+    <li><strong>Maßstab festlegen</strong>Entferne in der Legende die Häkchen bei allem, was die Runde nicht enthalten soll, zum Beispiel „Viel Verkehr“ und „Belag ungeeignet“.</li>
+    <li><strong>Ergebnis ablesen</strong>Die weiß-blauen Stellen zeigen, wo der Track deine Vorgaben verlässt. In der Dateiliste steht die Zusammenfassung, etwa „2 Stellen, zusammen 3,1 km“.
+      <figure><div class="frame"><img src="anleitung/pruefen.webp" width="1600" height="941" alt="Violetter GPX-Track mit weiß-blau markiertem Abschnitt auf einer ausgeblendeten Straße" loading="lazy"></div><figcaption>Der violette Track ist bis auf ein Stück in Ordnung.</figcaption></figure>
+    </li>
+    <li><strong>Markierung anklicken</strong>Das Fenster sagt dir, worauf der Track dort verläuft: eine ausgeschaltete Klasse wie „Viel Verkehr“ oder gar kein Rennradweg, zum Beispiel Schotter oder ein fehlender Weg.
+      <div class="pair">
+        <figure><div class="frame"><img src="anleitung/pruefen-popup.webp" width="694" height="242" alt="Fenster des Track-Checks: 0,4 km auf Viel Verkehr" loading="lazy"></div><figcaption>Was steckt hinter der Markierung?</figcaption></figure>
+        <figure><div class="frame"><img src="anleitung/gpxliste.webp" width="660" height="316" alt="Dateiliste mit Zusammenfassung des Track-Checks" loading="lazy"></div><figcaption>Auge · Hinzoomen · Entfernen, darunter die Zusammenfassung.</figcaption></figure>
+      </div>
+    </li>
+    <li><strong>Entscheiden</strong>Ist eine Stelle nur kurz, fährst du sie vielleicht in Kauf. Sonst zeichnest du dort eine Alternative mit „Track zeichnen“ nach – der Track-Check hilft dir dabei genauso.</li>
+  </ol>
+  <div class="callout"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.3h6c0-1 .4-1.8 1-2.3A7 7 0 0 0 12 2Z"/></svg><div><p><strong>Tipp:</strong> Lass zuerst alle Klassen eingeschaltet. Dann zeigt der Track-Check nur Stellen, die für das Rennrad überhaupt nicht in Frage kommen, etwa Schotter oder Feldwege. Danach schaltest du nach und nach strengere Klassen aus.</p></div></div>
+</section>
+
+<section id="aufsrad">
+  <span class="eyebrow">11 · Losfahren</span>
+  <h2>Vom PC aufs Rad</h2>
+  <ol class="steps">
+    <li><strong>GPX-Datei erzeugen</strong>Gib unter „Track zeichnen“ einen Namen ein und klicke auf den grünen Pfeil nach unten. Je nach Browser fragt er nach dem Speicherort, oder die Datei landet im Download-Ordner.</li>
+    <li><strong>Aufs Navi übertragen</strong>Bring die GPX-Datei <strong>auf gewohntem Wege auf dein Navigationsgerät am Rennrad</strong>.</li>
+    <li><strong>Genießen</strong>Und nach der Ausfahrt: Lade die aufgezeichnete Fahrt wieder in Rennrad Hoamat und prüfe sie – so lernst du deine Gegend noch besser kennen.</li>
+  </ol>
+</section>
+
+<section id="tipps">
+  <span class="eyebrow">12 · Für Fortgeschrittene</span>
+  <h2>Tipps und Kniffe</h2>
+  <div class="grid">
+    <div class="card"><h4><kbd>Leertaste</kbd> halten</h4><p>Blendet alle Tracks kurz aus, damit du die Wege darunter siehst. Loslassen zeigt sie wieder.</p></div>
+    <div class="card"><h4>Augen-Schalter</h4><p>Der Knopf unten links blendet die Tracks per Klick aus und wieder ein. Gedrückt halten wirkt wie die Leertaste.</p></div>
+    <div class="card"><h4>Sonntagsrunde</h4><p>In Bayern zeigt das Fenster einer gezählten Straße, wie viel Verkehr dort am Sonntag fährt, im Vergleich zum Durchschnitt.</p></div>
+    <div class="card"><h4>Merkt sich alles</h4><p>Die App öffnet dort, wo du aufgehört hast, und mit deinen Legenden-Einstellungen.</p></div>
+    <div class="card"><h4>Wird immer schneller</h4><p>Einmal geladene Gegenden speichert die App und zeigt sie beim nächsten Mal sofort.</p></div>
+    <div class="card"><h4>Platz schaffen</h4><p>Jeder Bereich im Panel lässt sich einzeln einklappen, das ganze Panel mit dem Pfeil oben rechts.</p></div>
+  </div>
+</section>
+
+<section id="fragen">
+  <span class="eyebrow">13 · Hilfe</span>
+  <h2>Häufige Fragen</h2>
+  <details><summary>Ich sehe keine farbigen Wege.</summary><p>Wahrscheinlich ist der Kartenausschnitt zu groß, dann ist der Punkt neben dem Titel rot. Zoome näher heran, bis er grün wird.</p></details>
+  <details><summary>Unten links steht „Server ausgelastet“.</summary><p>Die Wegdaten kommen von öffentlichen Servern, die manchmal voll sind. Die App versucht es selbst immer wieder und wechselt dabei den Server. Mit dem kreisförmigen Pfeil in der Anzeige startest du sofort einen neuen Versuch.</p></details>
+  <details><summary>Eine Straße ist blau, aber dort fährt viel Verkehr.</summary><p>Für kleine Gemeindestraßen gibt es keine Zählungen. Die App schätzt dann aus der Straßenart, und manche Abkürzung ist belebter als gedacht. Klick auf die Straße: Das Fenster sagt dir, ob gezählt oder geschätzt wurde.</p></details>
+  <details><summary>Der Track-Check zeigt „… % geprüft“.</summary><p>Für die Prüfung lädt die App die Wege entlang des ganzen Tracks. Das dauert bei langen Runden etwas, die Zahl steigt von selbst.</p></details>
+  <details><summary>Ich finde den grünen Installieren-Knopf nicht.</summary><p>Er erscheint nur in Browsern, die das Installieren unterstützen, und nur, solange die App noch nicht installiert ist. Du kannst Rennrad Hoamat auch ohne Installation ganz normal im Browser nutzen.</p></details>
+  <details><summary>Wie lösche ich die gespeicherten Wegdaten?</summary><p>Klappe den Bereich „Daten“ auf und klicke zweimal auf den Papierkorb. Deine GPX-Dateien auf dem PC bleiben davon unberührt.</p></details>
+</section>
+
+<section id="grenzen">
+  <span class="eyebrow">14 · Kleingedrucktes</span>
+  <h2>Grenzen und Quellen</h2>
+  <ul class="check">
+    <li>Die App ist eine Planungshilfe. Sie garantiert keine Befahrbarkeit und ersetzt nicht den Blick auf die Straße. Es gelten immer die Verkehrsregeln und die Beschilderung vor Ort.</li>
+    <li>Die Verkehrszahlen sind Jahresmittel. Am Feierabend, bei Ausflugswetter oder wegen einer Umleitung kann es deutlich voller sein.</li>
+    <li>Alles bleibt auf deinem PC. Die App braucht kein Konto, und deine Tracks verlassen den Rechner nicht.</li>
+  </ul>
+  <p style="font-size:15.5px;color:var(--muted)">Daten und Dienste: Wegdaten © OpenStreetMap-Mitwirkende · Verkehrsmengen: Bayerische Straßenbauverwaltung – BAYSIS (CC BY 4.0), Verkehrsministerium Baden-Württemberg über MobiData BW (dl-de/by-2-0), ASTAT und Autonome Provinz Bozen (CC0) · Grundkarten: basemap.de / BKG, basemap.at, Autonome Provinz Bozen, Esri · Routing: BRouter.</p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <img src="icons/icon.svg" alt="">
+  Rennrad Hoamat · Gute Fahrt und ruhige Straßen! · <a href="./" target="_blank" rel="noopener">App öffnen</a>
+</footer>
+
+<script>
+// Inhaltsverzeichnis: aktuellen Abschnitt hervorheben
+const links = [...document.querySelectorAll('.toc a')];
+const io = new IntersectionObserver(es => es.forEach(e => {
+  if (e.isIntersecting) links.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + e.target.id));
+}), { rootMargin: '-30% 0px -60% 0px' });
+document.querySelectorAll('main section').forEach(s => io.observe(s));
+</script>
+</body>
+</html>
