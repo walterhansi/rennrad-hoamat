@@ -92,6 +92,8 @@ a.ib { text-decoration: none; box-sizing: border-box; }
 .tracklist li .chk { grid-column: 1 / -1; }
 .tracklist li.off > span { opacity: .5; text-decoration: line-through; }
 .swatchline { display: inline-block; width: 26px; height: 5px; border-radius: 3px; vertical-align: middle; margin-right: 6px; }
+.barrier i { display: block; width: 14px; height: 14px; border-radius: 50%; background: var(--c5); box-shadow: 0 0 0 1.5px #fff, 0 1px 3px rgba(0,0,0,.35); position: relative; }
+.barrier i::after { content: ""; position: absolute; left: 3px; right: 3px; top: 6px; height: 2px; background: #fff; border-radius: 1px; }
 .wp { width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 3px solid var(--draw-casing); box-shadow: 0 0 0 2px var(--draw); box-sizing: border-box; }
 .wp.first { border-color: var(--c1); }
 .chk { font-size: 12px; line-height: 1.35; color: var(--muted); display: flex; gap: 6px; align-items: baseline; }
@@ -270,7 +272,7 @@ const BAYSIS_WFS = 'https://gisportal-stmb.bayern.de/server/services/WFS/BAYSIS_
 const BZ_WFS = 'https://geoservices1.civis.bz.it/geoserver/p_bz-TransportNetwork/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=p_bz-TransportNetwork:Infrastructures-TrafficCounters&outputFormat=application/json&srsName=EPSG:4326';
 const BROUTER = 'https://brouter.de/brouter';
 
-const CACHE_VERSION = 4;          // 4: asphaltierte Zufahrtswege; 3: Radrouten; 2: Merkmale für die Verfeinerung. Ältere Kacheln werden sofort gezeigt und still aufgefrischt
+const CACHE_VERSION = 5;          // 5: gesperrte Verbindungsstücke; 4: asphaltierte Zufahrtswege; 3: Radrouten; 2: Merkmale für die Verfeinerung. Ältere Kacheln werden sofort gezeigt und still aufgefrischt
 const OSM_MAX_AGE = 14 * 864e5;   // Wegdaten nach 14 Tagen im Hintergrund auffrischen
 const CNT_MAX_AGE = 180 * 864e5;  // Zählwerte ändern sich selten
 const BZ_MAX_AGE = 90 * 864e5;
@@ -459,6 +461,7 @@ const CLASSES = [
   { id: '5',  order: 0, name: 'Viel Verkehr', hint: `über ${de(DTV_BUSY)} Kfz/Tag; ohne Zählung: Staats- und Bundesstraßen`, color: 'var(--c5)', weight: 3, dash: '6 6' },
   { id: '6',  order: 1, name: 'Belag ungeeignet', hint: 'Pflaster, Kopfstein, Schotter oder schlechte Ebenheit auf Straßen und Radwegen', color: 'var(--c6a)', color2: 'var(--c6b)', weight: 4, dash: '6 6' },
   { id: '7',  order: 9, name: 'Hinweis: viele Lkw oder Motorräder', hint: `ab ${SV_ABS} Lkw/Busse oder ${Math.round(SV_SHARE * 100)} % Schwerverkehr, oder ab ${KRAD_ABS} Motorrädern pro Tag (nur Bayern), auf gezählten Straßen unter ${de(DTV_BUSY)} Kfz/Tag`, color: 'var(--hint)', weight: 2, dash: '2 5', marker: true },
+  { id: 'x',  order: 10, name: 'Gesperrte Verbindung', hint: 'Kurzes Stück zwischen zwei guten Wegen, auf dem Radfahren laut OpenStreetMap verboten ist (Zaun, Betriebsgelände …) – ab Zoom 14', color: 'var(--c5)', weight: 2, marker: true, barrier: true },
 ];
 const CLS = Object.fromEntries(CLASSES.map(c => [c.id, c]));
 const WAY_CLASSES = CLASSES.filter(c => !c.marker).map(c => c.id);
@@ -509,6 +512,12 @@ function classifyService(t) {
   if (/^(private|no)$/.test(t.access || '') || /^(no|use_sidepath|dismount)$/.test(t.bicycle || '')) return null;
   return 2;
 }
+
+// Für Radfahrer gesperrter Weg (Kandidat für „gesperrte Verbindung“)
+const BLOCKABLE = /^(service|track|cycleway|unclassified|residential|living_street|path|footway|bridleway)$/;
+const isBlocked = t => BLOCKABLE.test(t.highway || '') && !BIKE_OK.test(t.bicycle || '')
+  && (t.bicycle === 'no' || /^(no|private)$/.test(t.access || ''));
+const BLOCK_MAX_LEN = 200;
 
 // Tempo in km/h, auch für Angaben wie „DE:rural“
 function speedOf(v) {
@@ -724,7 +733,7 @@ function classifyArea(elements, features) {
   };
 
   // OpenStreetMap: Klasse je Weg; nebenbei Straßen für „Radweg neben der Straße“ und Einmündungen sammeln
-  const osmItems = [], roads = new SegGrid(), nodeRefs = new Map();
+  const osmItems = [], roads = new SegGrid(), nodeRefs = new Map(), blockedWays = [];
   for (const el of elements) {
     if (el.type !== 'way' || !el.geometry || el.geometry.length < 2) continue;
     const t = el.tags || {};
@@ -738,6 +747,7 @@ function classifyArea(elements, features) {
     }
     const c = classifyWay(t);
     if (c) osmItems.push({ kind: 'osm', el, ll, lines: [ll], refs, ...c });
+    else if (isBlocked(t)) blockedWays.push({ el, ll });
   }
 
   // Radweg direkt neben einer Straße: autofrei, aber langsam
@@ -779,7 +789,36 @@ function classifyArea(elements, features) {
   // Volltreffer: gute Wege, die zu einer offiziellen Radroute gehören (in Bayern auch unter gezählten Abschnitten)
   const routeHits = [...kept, ...shadows].filter(it => it.el ? it.el.routes : it.routes).filter(it => ROUTE_CLASSES.has(it.k));
 
-  return { items: [...countItems, ...kept], shadows, hints, routeHits, counted: countItems.length + viaStation };
+  return { items: [...countItems, ...kept], shadows, hints, routeHits, barriers: findBarriers(blockedWays, [...kept, ...shadows]), counted: countItems.length + viaStation };
+}
+
+// Gesperrte Verbindungen: kurze gesperrte Stücke (auch mehrere aneinander), deren beide Enden an gute Wege stoßen
+function findBarriers(blockedWays, goodItems) {
+  if (!blockedWays.length) return [];
+  const good = new Set();
+  for (const it of goodItems) if (ROUTE_CLASSES.has(it.k)) for (const ll of it.lines) for (const p of ll) good.add(nodeKey(p));
+  // aneinanderhängende gesperrte Wege zusammenfassen
+  const parent = blockedWays.map((_, i) => i), find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
+  const byEnd = new Map();
+  blockedWays.forEach((w, i) => {
+    w.a = nodeKey(w.ll[0]); w.b = nodeKey(w.ll[w.ll.length - 1]); w.len = lengthOf(w.ll);
+    for (const k of [w.a, w.b]) { if (byEnd.has(k)) parent[find(i)] = find(byEnd.get(k)); else byEnd.set(k, i); }
+  });
+  const groupsOf = new Map();
+  blockedWays.forEach((w, i) => { const r = find(i); if (!groupsOf.has(r)) groupsOf.set(r, []); groupsOf.get(r).push(w); });
+  const out = [];
+  for (const ws of groupsOf.values()) {
+    const len = ws.reduce((s, w) => s + w.len, 0);
+    if (len > BLOCK_MAX_LEN) continue;
+    const count = new Map();
+    for (const w of ws) for (const k of [w.a, w.b]) count.set(k, (count.get(k) || 0) + 1);
+    const ends = [...count].filter(([, n]) => n === 1).map(([k]) => k);
+    if (ends.length < 2 || ends.filter(k => good.has(k)).length < 2) continue;
+    const main = ws.reduce((a, b) => b.len > a.len ? b : a);
+    const S = sampleLine(main.ll, 5);
+    out.push({ ws, len, at: S[S.length >> 1].p });
+  }
+  return out;
 }
 
 /* ======================= 7  Datenquellen ======================= */
@@ -922,7 +961,7 @@ const cache = (() => {
 })();
 
 // Behalten werden eingestufte Wege und alle Hauptstraßen (für Einmündungen und „Radweg neben der Straße“)
-const keepWay = t => !!classifyWay(t) || MOTOR_ROADS.test(t.highway || '');
+const keepWay = t => !!classifyWay(t) || MOTOR_ROADS.test(t.highway || '') || isBlocked(t);
 function packOsm(data) {
   const w = data.elements.filter(el => el.type === 'way' && el.geometry && keepWay(el.tags || {})).map(el => {
     const tags = {};
@@ -1205,6 +1244,15 @@ function addRouteHalo(it) {
   groups[it.k].addLayer(L.polyline(it.lines, { color: '#d99a00', weight: c.weight + 17, opacity: 0.9, lineCap: 'round', lineJoin: 'round', interactive: false }));
   groups[it.k].addLayer(L.polyline(it.lines, { color: ROUTE_COLOR, weight: c.weight + 12, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }));
 }
+const BARRIER_ICON = () => L.divIcon({ className: 'barrier', html: '<i></i>', iconSize: [14, 14], iconAnchor: [7, 7] });
+function addBarrier(b) {
+  const g = groups['x'];
+  for (const w of b.ws) g.addLayer(L.polyline(w.ll, { color: CLS['x'].col, weight: 2, dashArray: '2 4', opacity: 0.8, interactive: false }));
+  const t = b.ws[0].el.tags, why = t.bicycle === 'no' ? 'Radfahren verboten (bicycle=no)' : t.access === 'private' ? 'Privatweg (access=private)' : 'Zutritt verboten (access=no)';
+  g.addLayer(L.marker(b.at, { icon: BARRIER_ICON(), keyboard: false }).bindPopup(`<strong>Gesperrte Verbindung</strong><br>${why} auf rund ${fmt(b.len)} m zwischen zwei guten Wegen.
+    <div class="pn">Hier kommst du mit dem Rad laut OpenStreetMap nicht durch – auch wenn die Wege davor und danach gut sind. Ist das falsch, kann man es in OpenStreetMap korrigieren.</div>
+    ${b.ws.map(w => osmLink(w.el)).join('<br>')}`));
+}
 function addHint(it, popup) {
   const c = CLS['7'];
   const line = L.polyline(it.lines, { color: c.col, weight: c.weight + 1, dashArray: c.dash, opacity: 1 });
@@ -1288,6 +1336,7 @@ function renderView() {
   if (showRoutes) for (const it of res.routeHits) addRouteHalo(it);   // zuerst, damit der Leuchtrand unter allen Linien liegt
   for (const it of res.items) { addLine(it, () => popupFor(it)); n[it.k]++; }
   for (const it of res.hints) { addHint(it, () => popupFor(it)); n['7']++; }
+  if (map.getZoom() >= 14) for (const b of res.barriers) { addBarrier(b); n['x']++; }   // erst ab Zoom 14, damit die Übersicht ruhig bleibt
   const osmDone = needed.filter(t => t.osmState === 'done').length, cntDone = needed.filter(t => t.cntState === 'done').length;
   const complete = osmDone === needed.length && cntDone === needed.length;
   setStatus(`Autofrei ${n['1']} · langsam ${n['1b']} · ruhig ${n['2']} · mäßig ${n['3']} · spürbar ${n['4']} · viel ${n['5']} · Belag ungeeignet ${n['6']}. `
@@ -1756,10 +1805,11 @@ function initLegend() {
     !!prefs.get('routes'), on => { prefs.set({ routes: on }); renderView(); }, 'sepb');
   for (const c of CLASSES) {
     const sw = c.col2 ? `repeating-linear-gradient(90deg, ${c.col} 0 6px, ${c.col2} 6px 12px)`
+      : c.barrier ? `linear-gradient(#fff,#fff) center/8px 2px no-repeat, radial-gradient(circle, ${c.col} 0 6px, #fff 6.5px 7.5px, transparent 8px) center/16px 16px no-repeat`
       : c.marker ? `repeating-linear-gradient(90deg, ${c.col} 0 3px, transparent 3px 8px)`
       : c.dash ? `repeating-linear-gradient(90deg, ${c.col} 0 8px, transparent 8px 13px)`
       : c.col;
-    row('cls' + c.id, `background:${sw};height:${Math.max(4, c.weight)}px`, c.name, c.hint, !hidden.includes(c.id), on => {
+    row('cls' + c.id, `background:${sw};height:${c.barrier ? 16 : Math.max(4, c.weight)}px`, c.name, c.hint, !hidden.includes(c.id), on => {
       toggleLayer(groups[c.id], on);
       prefs.set({ hidden: CLASSES.filter(x => !$('cls' + x.id).checked).map(x => x.id) });
       scheduleCheck(0);
@@ -1951,6 +2001,12 @@ function selfTest() {
   const rw = (id, tags) => Object.assign(way(id, tags, along(48.01, 11, 11.01)), { routes: [{ name: 'Isarradweg', net: 'rcn' }] });
   const area3 = classifyArea([rw(21, { highway: 'track', surface: 'asphalt' }), rw(22, { highway: 'secondary' }), way(23, { highway: 'unclassified' }, along(48.02, 11, 11.01))], []);
   eq('Volltreffer: guter Weg auf Radroute', area3.routeHits.map(i => i.el.id), [21]);
+  // Gesperrte Verbindung: Brücke mit access=no zwischen zwei autofreien Wegen
+  const area4 = classifyArea([way(31, { highway: 'service', motorcar: 'no', surface: 'asphalt' }, [[48.03, 11.0], [48.03, 11.005]]),
+    way(32, { highway: 'service', access: 'no', bridge: 'yes', surface: 'asphalt' }, [[48.03, 11.005], [48.0303, 11.0053]]),
+    way(33, { highway: 'service', motorcar: 'no', surface: 'asphalt' }, [[48.0303, 11.0053], [48.035, 11.01]]),
+    way(34, { highway: 'service', access: 'private', surface: 'asphalt' }, [[48.035, 11.01], [48.04, 11.02]])], []);
+  eq('Gesperrte Verbindung erkannt (nur die kurze Brücke)', area4.barriers.map(b => b.ws.map(w => w.el.id)), [[32]]);
   // Track-Check
   const grid = new SegGrid();
   for (const it of area1.items) for (const ll of it.lines) grid.addLine(ll, it);
