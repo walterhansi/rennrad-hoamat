@@ -69,6 +69,7 @@ select, input[type=text] { font: inherit; font-size: 13px; padding: 4px 6px; bor
 .legend label { display: grid; grid-template-columns: 18px 42px 1fr; align-items: center; gap: 8px; cursor: pointer; }
 .legend small { display: block; color: var(--muted); font-size: 12px; line-height: 1.3; }
 .legend .sep { border-top: 1px solid var(--line); margin-top: 2px; padding-top: 6px; }
+.legend .sepb { border-bottom: 1px solid var(--line); margin-bottom: 2px; padding-bottom: 6px; }
 .swatch { height: 14px; display: block; }
 
 /* Symbolknöpfe */
@@ -1733,11 +1734,14 @@ function initLegend() {
   const row = (id, swatchCss, name, hint, checked, onChange, sep) => {
     const lab = document.createElement('label');
     lab.htmlFor = id;
-    if (sep) lab.className = 'sep';
+    if (sep) lab.className = sep === true ? 'sep' : sep;
     lab.innerHTML = `<input type="checkbox" id="${id}"${checked ? ' checked' : ''}><span class="swatch" style="${swatchCss}"></span><span>${name}<small>${hint}</small></span>`;
     legend.appendChild(lab);
     lab.querySelector('input').addEventListener('change', e => onChange(e.target.checked));
   };
+  row('routesOn', `background:linear-gradient(${CLS['2'].col},${CLS['2'].col}) center/100% 4px no-repeat, ${ROUTE_COLOR};height:14px;border-radius:7px`,
+    'Volltreffer: offizielle Radroute', 'Gute Wege (autofrei bis mäßiger Verkehr), die Teil einer ausgeschilderten Radroute sind, z. B. Isarradweg – gelb hinterlegt',
+    !!prefs.get('routes'), on => { prefs.set({ routes: on }); renderView(); }, 'sepb');
   for (const c of CLASSES) {
     const sw = c.col2 ? `repeating-linear-gradient(90deg, ${c.col} 0 6px, ${c.col2} 6px 12px)`
       : c.marker ? `repeating-linear-gradient(90deg, ${c.col} 0 3px, transparent 3px 8px)`
@@ -1749,9 +1753,6 @@ function initLegend() {
       scheduleCheck(0);
     });
   }
-  row('routesOn', `background:linear-gradient(${CLS['2'].col},${CLS['2'].col}) center/100% 4px no-repeat, ${ROUTE_COLOR};height:14px;border-radius:7px`,
-    'Volltreffer: offizielle Radroute', 'Gute Wege (autofrei bis mäßiger Verkehr), die Teil einer ausgeschilderten Radroute sind, z. B. Isarradweg – gelb hinterlegt',
-    !!prefs.get('routes'), on => { prefs.set({ routes: on }); renderView(); }, true);
   row('trkDraw', `background:${cssVar('--draw')};height:6px;border-radius:3px`, 'Gezeichneter Track', 'Bereich „Track zeichnen“', show.draw, on => setShow('draw', on), true);
   row('trkGpx', `background:${cssVar('--gpx')};height:6px;border-radius:3px`, 'Geladene Tracks', 'Bereich „GPX-Datei anzeigen“', show.gpx, on => setShow('gpx', on));
   row('trkCheck', `background:#fff;height:9px;border-radius:5px;box-shadow:inset 0 0 0 2.5px ${cssVar('--chk')}`, 'Track-Check',

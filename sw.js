@@ -2,7 +2,7 @@
 // Programmdateien: zuerst aus dem Netz (damit Aktualisierungen sofort ankommen), ohne Netz aus dem Vorrat.
 // Leaflet vom CDN: aus dem Vorrat. Wegdaten, Zählungen und Routing laufen immer direkt übers Netz;
 // die Wegdaten speichert die Seite selbst (IndexedDB).
-const VERSION = 'rh-6';
+const VERSION = 'rh-7';
 const APP = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
   'anleitung.html', 'anleitung/gpxliste.webp', 'anleitung/kopf.webp', 'anleitung/legende.webp', 'anleitung/planen-nachher.webp', 'anleitung/planen-vorher.webp', 'anleitung/pruefen-popup.webp', 'anleitung/pruefen.webp', 'anleitung/uebersicht.webp', 'anleitung/zeichnen-panel.webp'];
 const LIB = [
