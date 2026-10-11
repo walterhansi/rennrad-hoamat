@@ -137,6 +137,7 @@ a.ib { text-decoration: none; box-sizing: border-box; }
 .leaflet-popup-content td:first-child { color: #666; }
 .leaflet-popup-content .warn { color: #8a2be2; font-weight: 600; }
 .leaflet-popup-content .pn { margin-top: 4px; color: #444; font-size: 12px; }
+.leaflet-popup-content .pn.rt { background: #fff3b0; color: #3d3200; padding: 3px 6px; border-radius: 4px; }
 </style>
 </head>
 <body>
@@ -267,7 +268,7 @@ const BAYSIS_WFS = 'https://gisportal-stmb.bayern.de/server/services/WFS/BAYSIS_
 const BZ_WFS = 'https://geoservices1.civis.bz.it/geoserver/p_bz-TransportNetwork/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=p_bz-TransportNetwork:Infrastructures-TrafficCounters&outputFormat=application/json&srsName=EPSG:4326';
 const BROUTER = 'https://brouter.de/brouter';
 
-const CACHE_VERSION = 2;          // 2: zusätzliche Merkmale für die Verfeinerung; Kacheln aus Version 1 werden weiter genutzt und still aufgefrischt
+const CACHE_VERSION = 3;          // 3: Radrouten; 2: Merkmale für die Verfeinerung. Ältere Kacheln werden sofort gezeigt und still aufgefrischt
 const OSM_MAX_AGE = 14 * 864e5;   // Wegdaten nach 14 Tagen im Hintergrund auffrischen
 const CNT_MAX_AGE = 180 * 864e5;  // Zählwerte ändern sich selten
 const BZ_MAX_AGE = 90 * 864e5;
@@ -459,6 +460,9 @@ const CLASSES = [
 ];
 const CLS = Object.fromEntries(CLASSES.map(c => [c.id, c]));
 const WAY_CLASSES = CLASSES.filter(c => !c.marker).map(c => c.id);
+const ROUTE_CLASSES = new Set(['1', '1b', '2', '3']);    // „Volltreffer“ nur auf guten Wegen
+const ROUTE_NET = { icn: 'international', ncn: 'national', rcn: 'regional', lcn: 'örtlich' };
+const ROUTE_COLOR = '#ffd60a';
 
 // Grundregel (unverändert seit der ersten Fassung): Belag, Kfz-Verbote, Straßenklasse
 function classifyOsm(t) {
@@ -739,7 +743,7 @@ function classifyArea(elements, features) {
       const line = bavarianLine(it.refs, it.ll[it.ll.length >> 1]);
       // Bayern: die Zähllinie ersetzt den Weg in der Anzeige. Für den Track-Check bleibt der Weg mit der Klasse
       // der Zähllinie erhalten, weil Tracks der OpenStreetMap-Geometrie folgen, nicht der Zähllinie.
-      if (line) { shadows.push({ kind: 'shadow', k: line.k, lines: [it.ll] }); continue; }
+      if (line) { shadows.push({ kind: 'shadow', k: line.k, lines: [it.ll], routes: it.el.routes }); continue; }
       withRef.push(it);
     }
     kept.push(it);
@@ -759,7 +763,10 @@ function classifyArea(elements, features) {
   for (const it of countItems) if (it.k !== '5' && countHint(it.p).any) hints.push(it);
   for (const it of kept) if (it.m && it.k !== '5' && it.k !== '6' && stationHeavy(it.m.st)) hints.push(it);
 
-  return { items: [...countItems, ...kept], shadows, hints, counted: countItems.length + viaStation };
+  // Volltreffer: gute Wege, die zu einer offiziellen Radroute gehören (in Bayern auch unter gezählten Abschnitten)
+  const routeHits = [...kept, ...shadows].filter(it => it.el ? it.el.routes : it.routes).filter(it => ROUTE_CLASSES.has(it.k));
+
+  return { items: [...countItems, ...kept], shadows, hints, routeHits, counted: countItems.length + viaStation };
 }
 
 /* ======================= 7  Datenquellen ======================= */
@@ -775,7 +782,9 @@ function overpassQuery(b) {
   way[highway~"^(path|footway|bridleway)$"][bicycle~"^(yes|designated|permissive)$"][surface~${PAVED}];
   way[highway=service][~"^(motor_vehicle|vehicle|motorcar)$"~"^(no|agricultural|forestry)"];
 );
-out tags geom;`;
+out tags geom;
+rel[route=bicycle][state!=proposed];
+out body;`;
 }
 
 const servers = OVERPASS.map(url => ({ url, host: new URL(url).hostname, ms: 3000, streak: 0, coolUntil: 0 }));
@@ -901,19 +910,34 @@ const cache = (() => {
 // Behalten werden eingestufte Wege und alle Hauptstraßen (für Einmündungen und „Radweg neben der Straße“)
 const keepWay = t => !!classifyOsm(t) || MOTOR_ROADS.test(t.highway || '');
 function packOsm(data) {
-  return data.elements.filter(el => el.type === 'way' && el.geometry && keepWay(el.tags || {})).map(el => {
+  const w = data.elements.filter(el => el.type === 'way' && el.geometry && keepWay(el.tags || {})).map(el => {
     const tags = {};
     for (const k of KEEP_TAGS) if (el.tags[k] != null) tags[k] = el.tags[k];
     const g = [];
     for (const p of el.geometry) g.push(r5(p.lat), r5(p.lon));
     return [el.id, tags, g];
   });
+  // Offizielle Radrouten: Name, Netz und die Wege dieser Kachel, die dazugehören
+  const ids = new Set(w.map(x => x[0]));
+  const r = data.elements.filter(el => el.type === 'relation' && el.tags && el.tags.route === 'bicycle').map(el => {
+    const t = el.tags;
+    return [t.name || t.ref || 'Radroute', t.network || '', (el.members || []).filter(m => m.type === 'way' && ids.has(m.ref)).map(m => m.ref)];
+  }).filter(x => x[2].length);
+  return { w, r };
 }
-function unpackOsm(arr) {
-  return { elements: arr.map(([id, tags, g]) => {
+function unpackOsm(packed) {
+  const w = Array.isArray(packed) ? packed : packed.w, r = Array.isArray(packed) ? [] : packed.r || [];
+  const routesOf = new Map();
+  for (const [name, net, ids] of r) for (const id of ids) {
+    if (!routesOf.has(id)) routesOf.set(id, []);
+    if (!routesOf.get(id).some(x => x.name === name)) routesOf.get(id).push({ name, net });
+  }
+  return { elements: w.map(([id, tags, g]) => {
     const geometry = [];
     for (let i = 0; i < g.length; i += 2) geometry.push({ lat: g[i], lon: g[i + 1] });
-    return { type: 'way', id, tags, geometry };
+    const el = { type: 'way', id, tags, geometry };
+    if (routesOf.has(id)) el.routes = routesOf.get(id);
+    return el;
   }) };
 }
 function packCnt(data) {
@@ -986,12 +1010,12 @@ function pruneTiles() {
 const cacheKey = (t, v = CACHE_VERSION) => `v${v}:z${TILE_Z}:${t.key}`;
 function saveTile(t) {
   cache.put({ key: cacheKey(t), osm: t.osmP, osmAt: t.osmAt, cnt: t.cntP, cntAt: t.cntAt }).then(updateCacheInfo);
-  cache.del(cacheKey(t, 1));
+  for (let v = 1; v < CACHE_VERSION; v++) cache.del(cacheKey(t, v));
 }
 async function loadFromCache(t) {
   t.cacheState = 'checking';
   let rec = await cache.get(cacheKey(t)), old = false;
-  if (!rec) { rec = await cache.get(cacheKey(t, 1)); old = !!rec; }   // Kachel aus der Vorversion: sofort zeigen, still auffrischen
+  for (let v = CACHE_VERSION - 1; !rec && v >= 1; v--) { rec = await cache.get(cacheKey(t, v)); old = !!rec; }   // Kachel aus einer Vorversion: sofort zeigen, still auffrischen
   if (rec && rec.osm && t.osmState !== 'done') {
     t.osmP = rec.osm; t.osm = unpackOsm(rec.osm); t.osmAt = old ? 0 : rec.osmAt; t.osmState = 'done';
     t.osmStale = old || Date.now() - rec.osmAt > OSM_MAX_AGE;
@@ -1162,6 +1186,11 @@ function addLine(it, popup) {
   line.bindPopup(popup);
   g.addLayer(line);
 }
+function addRouteHalo(it) {
+  const c = CLS[it.k];
+  groups[it.k].addLayer(L.polyline(it.lines, { color: '#d99a00', weight: c.weight + 17, opacity: 0.9, lineCap: 'round', lineJoin: 'round', interactive: false }));
+  groups[it.k].addLayer(L.polyline(it.lines, { color: ROUTE_COLOR, weight: c.weight + 12, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }));
+}
 function addHint(it, popup) {
   const c = CLS['7'];
   const line = L.polyline(it.lines, { color: c.col, weight: c.weight + 1, dashArray: c.dash, opacity: 1 });
@@ -1171,6 +1200,12 @@ function addHint(it, popup) {
 
 // Popups
 const notesHtml = it => [it.est, ...(it.notes || [])].filter(Boolean).map(n => `<div class="pn">${esc(n)}</div>`).join('');
+const routeHtml = it => {
+  const r = it.el && it.el.routes;
+  if (!r) return '';
+  const names = r.slice(0, 3).map(x => `„${esc(x.name)}“${ROUTE_NET[x.net] ? ' (' + ROUTE_NET[x.net] + ')' : ''}`).join(', ') + (r.length > 3 ? ' …' : '');
+  return `<div class="pn rt">${ROUTE_CLASSES.has(it.k) ? '<b>Volltreffer:</b> ' : ''}Teil der Radroute ${names}</div>`;
+};
 const osmLink = el => `<a href="https://www.openstreetmap.org/way/${el.id}" target="_blank" rel="noopener">In OpenStreetMap ansehen</a>`;
 function popupFor(it) { return it.kind === 'count' ? countPopup(it.p, it.k) : it.m ? stationPopup(it) : osmPopup(it); }
 
@@ -1179,7 +1214,7 @@ function osmPopup(it) {
   const keys = ['highway', 'ref', 'surface', 'smoothness', 'tracktype', 'maxspeed', 'lanes', 'lane_markings', 'width', 'bicycle', 'motor_vehicle', 'access', 'bicycle_road'];
   const rows = keys.filter(x => t[x]).map(x => `<tr><td>${x}</td><td>${esc(t[x])}</td></tr>`).join('');
   const estimated = !it.est && /^[345]$/.test(it.k) && /^(tertiary|secondary|primary)/.test(t.highway) ? '<div class="pn"><em>Verkehr geschätzt aus der Straßenklasse, keine Zählung vorhanden.</em></div>' : '';
-  return `<strong>${esc(t.name || t.ref || c.name)}</strong><br>${c.name}${estimated}${notesHtml(it)}<table>${rows}</table>${osmLink(it.el)}`;
+  return `<strong>${esc(t.name || t.ref || c.name)}</strong><br>${c.name}${routeHtml(it)}${estimated}${notesHtml(it)}<table>${rows}</table>${osmLink(it.el)}`;
 }
 
 function countPopup(p, k) {
@@ -1209,7 +1244,7 @@ function stationPopup(it) {
   return `<strong>${esc(t.name || t.ref || '')}</strong><br>${CLS[it.k].name} · ${esc(st.short)}${stationHeavy(st) ? '<div class="warn">viel Schwerverkehr</div>' : ''}
     <table><tr><td>Kfz pro Tag</td><td>${fmt(st.dtv)}</td></tr><tr><td>Lkw und Busse</td><td>${svPart}</td></tr>
     <tr><td>Zählstelle</td><td>${esc(st.road)}${st.place ? ' ' + esc(st.place) : ''}, ${(m.d / 1000).toFixed(1).replace('.', ',')} km entfernt</td></tr></table>
-    <div class="pn">${how}</div>${notesHtml(it)}<small>Quelle: ${esc(st.src)}</small><br>${osmLink(it.el)}`;
+    ${routeHtml(it)}<div class="pn">${how}</div>${notesHtml(it)}<small>Quelle: ${esc(st.src)}</small><br>${osmLink(it.el)}`;
 }
 
 let renderTimer = null;
@@ -1235,12 +1270,15 @@ function renderView() {
   const res = classifyArea(...mergeTiles(needed));
   const n = Object.fromEntries(CLASSES.map(c => [c.id, 0]));
   res.items.sort((a, b) => CLS[a.k].order - CLS[b.k].order);
+  const showRoutes = !!prefs.get('routes');
+  if (showRoutes) for (const it of res.routeHits) addRouteHalo(it);   // zuerst, damit der Leuchtrand unter allen Linien liegt
   for (const it of res.items) { addLine(it, () => popupFor(it)); n[it.k]++; }
   for (const it of res.hints) { addHint(it, () => popupFor(it)); n['7']++; }
   const osmDone = needed.filter(t => t.osmState === 'done').length, cntDone = needed.filter(t => t.cntState === 'done').length;
   const complete = osmDone === needed.length && cntDone === needed.length;
   setStatus(`Autofrei ${n['1']} · langsam ${n['1b']} · ruhig ${n['2']} · mäßig ${n['3']} · spürbar ${n['4']} · viel ${n['5']} · Belag ungeeignet ${n['6']}. `
     + (res.counted ? `${res.counted} Abschnitte mit Zählwerten.` : (cntDone ? 'Keine Zählwerte in diesem Ausschnitt; Verkehr aus der Straßenklasse geschätzt.' : ''))
+    + (showRoutes ? ` ${res.routeHits.length} Volltreffer auf Radrouten.` : '')
     + (complete ? '' : ' Wird noch vervollständigt …'));
 }
 
@@ -1710,6 +1748,9 @@ function initLegend() {
       scheduleCheck(0);
     });
   }
+  row('routesOn', `background:linear-gradient(${CLS['2'].col},${CLS['2'].col}) center/100% 4px no-repeat, ${ROUTE_COLOR};height:14px;border-radius:7px`,
+    'Volltreffer: offizielle Radroute', 'Gute Wege (autofrei bis mäßiger Verkehr), die Teil einer ausgeschilderten Radroute sind, z. B. Isarradweg – gelb hinterlegt',
+    !!prefs.get('routes'), on => { prefs.set({ routes: on }); renderView(); }, true);
   row('trkDraw', `background:${cssVar('--draw')};height:6px;border-radius:3px`, 'Gezeichneter Track', 'Bereich „Track zeichnen“', show.draw, on => setShow('draw', on), true);
   row('trkGpx', `background:${cssVar('--gpx')};height:6px;border-radius:3px`, 'Geladene Tracks', 'Bereich „GPX-Datei anzeigen“', show.gpx, on => setShow('gpx', on));
   row('trkCheck', `background:#fff;height:9px;border-radius:5px;box-shadow:inset 0 0 0 2.5px ${cssVar('--chk')}`, 'Track-Check',
@@ -1888,6 +1929,10 @@ function selfTest() {
   eq('Zählstelle vor der Einmündung', kOf(area2, 12), '2');
   eq('Zählstelle hinter der Einmündung (nicht die nähere)', kOf(area2, 13), '5');
   eq('Zuordnung über den Straßenzug', (area2.items.find(i => i.el && i.el.id === 13) || {}).m?.via, 'road');
+  // Volltreffer auf Radrouten
+  const rw = (id, tags) => Object.assign(way(id, tags, along(48.01, 11, 11.01)), { routes: [{ name: 'Isarradweg', net: 'rcn' }] });
+  const area3 = classifyArea([rw(21, { highway: 'track', surface: 'asphalt' }), rw(22, { highway: 'secondary' }), way(23, { highway: 'unclassified' }, along(48.02, 11, 11.01))], []);
+  eq('Volltreffer: guter Weg auf Radroute', area3.routeHits.map(i => i.el.id), [21]);
   // Track-Check
   const grid = new SegGrid();
   for (const it of area1.items) for (const ll of it.lines) grid.addLine(ll, it);
