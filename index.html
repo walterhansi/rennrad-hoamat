@@ -518,6 +518,7 @@ const BLOCKABLE = /^(service|track|cycleway|unclassified|residential|living_stre
 const isBlocked = t => BLOCKABLE.test(t.highway || '') && !BIKE_OK.test(t.bicycle || '')
   && (t.bicycle === 'no' || /^(no|private)$/.test(t.access || ''));
 const BLOCK_MAX_LEN = 200;
+const DETOUR_MIN = 500, DETOUR_FACTOR = 5;   // markiert wird nur, wenn der Umweg über gute Wege mindestens so lang ist
 
 // Tempo in km/h, auch für Angaben wie „DE:rural“
 function speedOf(v) {
@@ -793,10 +794,38 @@ function classifyArea(elements, features) {
 }
 
 // Gesperrte Verbindungen: kurze gesperrte Stücke (auch mehrere aneinander), deren beide Enden an gute Wege stoßen
+// und die einen echten Umweg erzwingen (nicht etwa eine private Hofzufahrt, um die man bequem außen herum fährt)
 function findBarriers(blockedWays, goodItems) {
   if (!blockedWays.length) return [];
   const good = new Set();
   for (const it of goodItems) if (ROUTE_CLASSES.has(it.k)) for (const ll of it.lines) for (const p of ll) good.add(nodeKey(p));
+  // Wegenetz der guten Wege, erst bei Bedarf aufgebaut
+  let graph = null;
+  const buildGraph = () => {
+    graph = new Map();
+    const link = (a, b, d) => { if (!graph.has(a)) graph.set(a, []); graph.get(a).push([b, d]); };
+    for (const it of goodItems) if (ROUTE_CLASSES.has(it.k)) for (const ll of it.lines) for (let i = 1; i < ll.length; i++) {
+      const a = nodeKey(ll[i - 1]), b = nodeKey(ll[i]), d = dist(ll[i - 1], ll[i]);
+      link(a, b, d); link(b, a, d);
+    }
+  };
+  // kürzester Weg über gute Wege von a nach b, höchstens bis limit Meter gesucht
+  const detour = (a, b, limit) => {
+    if (!graph) buildGraph();
+    const best = new Map([[a, 0]]), queue = [[0, a]];
+    while (queue.length) {
+      let mi = 0;
+      for (let i = 1; i < queue.length; i++) if (queue[i][0] < queue[mi][0]) mi = i;
+      const [d, k] = queue.splice(mi, 1)[0];
+      if (k === b) return d;
+      if (d > best.get(k)) continue;
+      for (const [n, w] of graph.get(k) || []) {
+        const nd = d + w;
+        if (nd <= limit && nd < (best.get(n) ?? Infinity)) { best.set(n, nd); queue.push([nd, n]); }
+      }
+    }
+    return Infinity;
+  };
   // aneinanderhängende gesperrte Wege zusammenfassen
   const parent = blockedWays.map((_, i) => i), find = i => parent[i] === i ? i : (parent[i] = find(parent[i]));
   const byEnd = new Map();
@@ -813,7 +842,14 @@ function findBarriers(blockedWays, goodItems) {
     const count = new Map();
     for (const w of ws) for (const k of [w.a, w.b]) count.set(k, (count.get(k) || 0) + 1);
     const ends = [...count].filter(([, n]) => n === 1).map(([k]) => k);
-    if (ends.length < 2 || ends.filter(k => good.has(k)).length < 2) continue;
+    const goodEnds = ends.filter(k => good.has(k));
+    if (goodEnds.length < 2) continue;
+    // Kommt man über gute Wege ohne großen Umweg von einem Ende zum anderen, lohnt die Markierung nicht
+    const limit = Math.max(DETOUR_MIN, DETOUR_FACTOR * len);
+    let needed = false;
+    for (let i = 0; i < goodEnds.length && !needed; i++) for (let j = i + 1; j < goodEnds.length && !needed; j++)
+      if (detour(goodEnds[i], goodEnds[j], limit) >= limit) needed = true;
+    if (!needed) continue;
     const main = ws.reduce((a, b) => b.len > a.len ? b : a);
     const S = sampleLine(main.ll, 5);
     out.push({ ws, len, at: S[S.length >> 1].p });
@@ -2007,6 +2043,12 @@ function selfTest() {
     way(33, { highway: 'service', motorcar: 'no', surface: 'asphalt' }, [[48.0303, 11.0053], [48.035, 11.01]]),
     way(34, { highway: 'service', access: 'private', surface: 'asphalt' }, [[48.035, 11.01], [48.04, 11.02]])], []);
   eq('Gesperrte Verbindung erkannt (nur die kurze Brücke)', area4.barriers.map(b => b.ws.map(w => w.el.id)), [[32]]);
+  // Private Hofzufahrt zwischen zwei Straßen, die außen herum kurz verbunden sind: kein Zeichen
+  const area5 = classifyArea([way(41, { highway: 'residential' }, [[48.05, 11.0], [48.05, 11.002]]),
+    way(42, { highway: 'residential' }, [[48.05, 11.002], [48.0515, 11.002]]),
+    way(43, { highway: 'residential' }, [[48.0515, 11.002], [48.0515, 11.0]]),
+    way(44, { highway: 'service', access: 'private' }, [[48.05, 11.0], [48.0515, 11.0]])], []);
+  eq('Hofzufahrt mit kurzem Umweg: kein Zeichen', area5.barriers.length, 0);
   // Track-Check
   const grid = new SegGrid();
   for (const it of area1.items) for (const ll of it.lines) grid.addLine(ll, it);
