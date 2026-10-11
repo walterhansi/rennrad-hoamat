@@ -270,7 +270,7 @@ const BAYSIS_WFS = 'https://gisportal-stmb.bayern.de/server/services/WFS/BAYSIS_
 const BZ_WFS = 'https://geoservices1.civis.bz.it/geoserver/p_bz-TransportNetwork/ows?service=WFS&version=2.0.0&request=GetFeature&typeNames=p_bz-TransportNetwork:Infrastructures-TrafficCounters&outputFormat=application/json&srsName=EPSG:4326';
 const BROUTER = 'https://brouter.de/brouter';
 
-const CACHE_VERSION = 3;          // 3: Radrouten; 2: Merkmale für die Verfeinerung. Ältere Kacheln werden sofort gezeigt und still aufgefrischt
+const CACHE_VERSION = 4;          // 4: asphaltierte Zufahrtswege; 3: Radrouten; 2: Merkmale für die Verfeinerung. Ältere Kacheln werden sofort gezeigt und still aufgefrischt
 const OSM_MAX_AGE = 14 * 864e5;   // Wegdaten nach 14 Tagen im Hintergrund auffrischen
 const CNT_MAX_AGE = 180 * 864e5;  // Zählwerte ändern sich selten
 const BZ_MAX_AGE = 90 * 864e5;
@@ -453,7 +453,7 @@ const de = n => n.toLocaleString('de-DE');
 const CLASSES = [
   { id: '1',  order: 6, name: 'Autofrei, asphaltiert', hint: 'Wirtschaftswege, Radwege abseits von Straßen, Straßen mit Kfz-Verbot · mit kurzen Lücken: Belag nicht angegeben', color: 'var(--c1)', weight: 5 },
   { id: '1b', order: 5, name: 'Autofrei, aber langsam', hint: 'Radweg direkt neben einer Straße, Gehweg mit „Rad frei“: Einmündungen, Querungen, Fußgänger', color: 'var(--c1b)', weight: 3 },
-  { id: '2',  order: 4, name: 'Ruhig', hint: `Gemeindestraßen, Fahrradstraßen und gezählte Straßen unter ${de(DTV_QUIET)} Kfz/Tag`, color: 'var(--c2)', weight: 4 },
+  { id: '2',  order: 4, name: 'Ruhig', hint: `Gemeindestraßen, Fahrradstraßen, asphaltierte Zufahrtswege und gezählte Straßen unter ${de(DTV_QUIET)} Kfz/Tag`, color: 'var(--c2)', weight: 4 },
   { id: '3',  order: 3, name: 'Mäßiger Verkehr', hint: `${de(DTV_QUIET)} bis ${de(DTV_MODERATE)} Kfz/Tag; ohne Zählung: Kreisstraßen und Verbindungsstraßen mit Mittellinie und Tempo ab 70`, color: 'var(--c3)', weight: 4 },
   { id: '4',  order: 2, name: 'Spürbarer Verkehr', hint: `${de(DTV_MODERATE)} bis ${de(DTV_BUSY)} Kfz/Tag`, color: 'var(--c4)', weight: 4, dash: '10 5' },
   { id: '5',  order: 0, name: 'Viel Verkehr', hint: `über ${de(DTV_BUSY)} Kfz/Tag; ohne Zählung: Staats- und Bundesstraßen`, color: 'var(--c5)', weight: 3, dash: '6 6' },
@@ -501,6 +501,15 @@ function classifyOsm(t) {
   return null;
 }
 
+// Asphaltierte Zufahrtswege ohne Autoverbot (z. B. Kanal- und Feldstraßen): ruhig. Einfahrten, Parkplatzgassen,
+// Drive-ins und Notzufahrten bleiben draußen, ebenso private Zufahrten.
+function classifyService(t) {
+  if (t.highway !== 'service' || !GOOD_SURFACE.test(t.surface || '') || BAD_SMOOTH.test(t.smoothness || '')) return null;
+  if (/^(driveway|parking_aisle|drive-through|emergency_access)$/.test(t.service || '')) return null;
+  if (/^(private|no)$/.test(t.access || '') || /^(no|use_sidepath|dismount)$/.test(t.bicycle || '')) return null;
+  return 2;
+}
+
 // Tempo in km/h, auch für Angaben wie „DE:rural“
 function speedOf(v) {
   if (!v) return null;
@@ -515,9 +524,11 @@ function speedOf(v) {
 // Ergebnis: { k: Klasse, est: Begründung einer Schätzung (entfällt bei Zählung), notes: weitere Hinweise, unsure: Belag nur erschlossen }
 function classifyWay(t) {
   if (t.motorroad === 'yes') return null;                // Kraftfahrstraße: Radfahren verboten
-  const base = classifyOsm(t);
+  const service = !classifyOsm(t) && classifyService(t);
+  const base = classifyOsm(t) || service;
   if (!base) return null;
   const r = { k: String(base), est: null, notes: [], unsure: false };
+  if (service) r.est = 'Als Zufahrtsweg eingetragen: meist kaum befahren, eine Verkehrszählung gibt es nicht.';
   const h = t.highway;
   if (base === 1) {
     if (t.is_sidepath === 'yes') { r.k = '1b'; r.notes.push('Als straßenbegleitender Radweg eingetragen: autofrei, aber Einmündungen und Querungen.'); }
@@ -783,6 +794,7 @@ function overpassQuery(b) {
   way[highway=track][tracktype=grade1];
   way[highway~"^(path|footway|bridleway)$"][bicycle~"^(yes|designated|permissive)$"][surface~${PAVED}];
   way[highway=service][~"^(motor_vehicle|vehicle|motorcar)$"~"^(no|agricultural|forestry)"];
+  way[highway=service][surface~${PAVED}][service!~"^(driveway|parking_aisle|drive-through|emergency_access)$"];
 );
 out tags geom;
 rel[route=bicycle][state!=proposed];
@@ -910,7 +922,7 @@ const cache = (() => {
 })();
 
 // Behalten werden eingestufte Wege und alle Hauptstraßen (für Einmündungen und „Radweg neben der Straße“)
-const keepWay = t => !!classifyOsm(t) || MOTOR_ROADS.test(t.highway || '');
+const keepWay = t => !!classifyWay(t) || MOTOR_ROADS.test(t.highway || '');
 function packOsm(data) {
   const w = data.elements.filter(el => el.type === 'way' && el.geometry && keepWay(el.tags || {})).map(el => {
     const tags = {};
@@ -1897,6 +1909,10 @@ function selfTest() {
   eq('Gehweg Rad frei', k({ highway: 'footway', bicycle: 'yes', surface: 'asphalt' }), '1b');
   eq('Radweg als Begleitweg eingetragen', k({ highway: 'cycleway', surface: 'asphalt', is_sidepath: 'yes' }), '1b');
   eq('grade1 ohne Belag: unsicher', classifyWay({ highway: 'track', tracktype: 'grade1' }).unsure, true);
+  eq('Asphaltierter Zufahrtsweg', k({ highway: 'service', surface: 'asphalt' }), '2');
+  eq('Parkplatzgasse bleibt draußen', classifyWay({ highway: 'service', service: 'parking_aisle', surface: 'asphalt' }), null);
+  eq('Private Zufahrt bleibt draußen', classifyWay({ highway: 'service', access: 'private', surface: 'asphalt' }), null);
+  eq('Zufahrt mit Autoverbot autofrei', k({ highway: 'service', motor_vehicle: 'no', surface: 'asphalt' }), '1');
   eq('Fahrradstraße bleibt ruhig', k({ highway: 'residential', bicycle_road: 'yes', lanes: '4' }), '2');
   // Zählung und Straßennummern
   eq('Zählung 999', classifyCount(999), 2);
