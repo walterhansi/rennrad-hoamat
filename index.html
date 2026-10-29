@@ -1706,28 +1706,54 @@ function beginDrawnDrag(ll) {
 }
 
 // GPX-Datei: den markierten Abschnitt über den neuen Punkt neu berechnen
+// GPX-Datei: den markierten Abschnitt über den neuen Punkt neu berechnen.
+// Die Route wird großzügig vor und nach der Stelle angesetzt (Abzweigungen liegen oft schon vorher);
+// übernommen wird nur, was vom alten Track abweicht. So entsteht keine Sackgasse.
+const REROUTE_REACH = 2000, REROUTE_TOL = 30;
 function beginGpxDrag(t, run) {
   const line = t.lines[run.li];
   const cum = [0];
   for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + dist(line[i - 1], line[i]));
-  let i0 = 0, i1 = line.length - 1;
-  for (let i = 0; i < line.length; i++) { if (cum[i] <= run.s0) i0 = i; if (cum[i] >= run.s1) { i1 = i; break; } }
-  const a = L.latLng(line[i0][0], line[i0][1]), b = L.latLng(line[i1][0], line[i1][1]);
-  return { a, b, finish: async m => {
+  const idxAt = (s, after) => { let k = after ? line.length - 1 : 0; for (let i = 0; i < line.length; i++) { if (!after && cum[i] <= s) k = i; if (after && cum[i] >= s) { k = i; break; } } return k; };
+  const i0 = idxAt(run.s0, false), i1 = idxAt(run.s1, true);
+  const ia = idxAt(run.s0 - REROUTE_REACH, false), ib = idxAt(run.s1 + REROUTE_REACH, true);
+  const ll = i => L.latLng(line[i][0], line[i][1]);
+  return { a: ll(i0), b: ll(i1), finish: async m => {
     setStatus('Berechne die geänderte Strecke …');
     const mode = $('drawMode').value;
-    let pts;
+    let next;
     try {
-      pts = mode === 'straight' ? [[a.lat, a.lng, null], [m.lat, m.lng, null], [b.lat, b.lng, null]]
-        : [...await fetchRoute(a, m, mode), ...(await fetchRoute(m, b, mode)).slice(1)];
+      if (mode === 'straight') {
+        next = [...line.slice(0, i0 + 1), [m.lat, m.lng, null], ...line.slice(i1)];
+      } else {
+        const r = [...await fetchRoute(ll(ia), m, mode), ...(await fetchRoute(m, ll(ib), mode)).slice(1)];
+        next = spliceRoute(line, ia, ib, r, REROUTE_TOL);
+        if (!next) { setStatus('Der Routenplaner findet über diesen Punkt keinen anderen Weg. Zieh die Markierung etwas weiter auf den gewünschten Weg.', 'warn'); return; }
+      }
     } catch (e) { setStatus(`Strecke konnte nicht geändert werden: ${e.message}`, 'err'); return; }
     if (!t.orig) t.orig = t.lines.map(l => l.slice());
-    t.lines[run.li] = [...line.slice(0, i0), ...pts, ...line.slice(i1 + 1)];
+    t.lines[run.li] = next;
     drawGpxLines(t);
     renderGpxList();
     onTracksChanged();
     setStatus(`${t.name}: Strecke geändert. Mit dem Speichern-Symbol in der Dateiliste sicherst du die neue Fassung.`);
   } };
+}
+
+// Neue Route r in den alten Track o einsetzen, aber nur dort, wo sie wirklich abweicht:
+// vom letzten gemeinsamen Punkt vor der Abzweigung bis zum ersten gemeinsamen Punkt nach der Wiedereinmündung.
+// Ergebnis null, wenn die Route gar nicht abweicht.
+function spliceRoute(o, ia, ib, r, tol) {
+  const sub = o.slice(ia, ib + 1);
+  const off = p => lineDist(p, sub) > tol;
+  let k1 = 0; while (k1 < r.length && !off(r[k1])) k1++;
+  let k2 = r.length - 1; while (k2 >= 0 && !off(r[k2])) k2--;
+  if (k1 >= r.length || k2 < k1) return null;
+  const s = Math.max(0, k1 - 1), e = Math.min(r.length - 1, k2 + 1);
+  // Abschnitt des alten Tracks, auf dem ein Punkt liegt (Suche ab from)
+  const segAt = (p, from) => { let best = from, bd = Infinity; for (let i = from; i < ib; i++) { const d = segDist(p, o[i], o[i + 1]); if (d < bd) { bd = d; best = i; } } return best; };
+  const j1 = segAt(r[s], ia), j2 = segAt(r[e], j1) + 1;
+  return [...o.slice(0, j1 + 1), ...r.slice(s, e + 1), ...o.slice(j2)];
 }
 
 function initTracks() {
@@ -2160,6 +2186,12 @@ function selfTest() {
     way(43, { highway: 'residential' }, [[48.0515, 11.002], [48.0515, 11.0]]),
     way(44, { highway: 'service', access: 'private' }, [[48.05, 11.0], [48.0515, 11.0]])], []);
   eq('Hofzufahrt mit kurzem Umweg: kein Zeichen', area5.barriers.length, 0);
+  // Umleitung einsetzen ohne Sackgasse: alter Track geradeaus, neue Route biegt bei 11,015 ab und mündet bei 11,025 wieder ein
+  const straight = []; for (let i = 0; i <= 40; i++) straight.push([48, 11 + i * 0.001]);
+  const detour = [...straight.slice(5, 16), [48.002, 11.017], [48.003, 11.02], [48.002, 11.023], ...straight.slice(25, 36)];
+  const spliced = spliceRoute(straight, 5, 35, detour, 30);
+  eq('Umleitung: keine Sackgasse', spliced && spliced.filter(p => p[0] === 48 && p[1] > 11.0155 && p[1] < 11.0245).length, 0);
+  eq('Umleitung: Rest bleibt', spliced && [spliced[0], spliced[spliced.length - 1]], [[48, 11], [48, 11.04]]);
   // Track-Check
   const grid = new SegGrid();
   for (const it of area1.items) for (const ll of it.lines) grid.addLine(ll, it);
