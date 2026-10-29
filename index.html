@@ -1485,6 +1485,10 @@ function drawGpxLines(t) {
     t.group.addLayer(L.polyline(ll, { renderer: trackRenderer, color: '#ffffff', weight: 11, opacity: 0.9, interactive: false }));
     t.group.addLayer(L.polyline(ll, { renderer: trackRenderer, color, weight: 7, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }));
   }
+  // unsichtbare, breite Greiflinie: den Track an beliebiger Stelle anfassen und auf einen anderen Weg ziehen
+  t.lines.forEach((l, li) => t.group.addLayer(makeDraggable(
+    L.polyline(l.map(p => [p[0], p[1]]), { renderer: checkRenderer, color: '#000', weight: 16, opacity: 0, interactive: true }),
+    at => grabGpx(t, li, at))));
   const all = t.lines.flat();
   t.bounds = L.latLngBounds(all.map(p => [p[0], p[1]]));
   t.meters = t.lines.reduce((s, l) => s + lengthOf(l), 0);
@@ -1723,7 +1727,7 @@ function beginGpxDrag(t, run) {
     const mode = $('drawMode').value;
     let next;
     try {
-      const atStart = i0 === 0, atEnd = i1 >= line.length - 1;
+      const atStart = !run.free && i0 === 0, atEnd = !run.free && i1 >= line.length - 1;
       const mp = [m.lat, m.lng, null];
       if (atStart !== atEnd) {
         // Die Stelle liegt am Anfang oder Ende des Tracks: der gezogene Punkt wird neuer Anfang bzw. neues Ende
@@ -1789,6 +1793,15 @@ function spliceEnd(o, ia, r, tol) {
 function spliceStart(o, ib, r, tol) {
   const b = followBackward(o, cumOf(o), 0, ib, r, tol);
   return [...r.slice(0, Math.min(r.length, b.k + 2)), ...o.slice(b.j)];
+}
+
+// Track an beliebiger Stelle angefasst: Lage auf dem Track bestimmen und wie eine Markierung behandeln
+function grabGpx(t, li, at) {
+  const o = t.lines[li], p = [at.lat, at.lng], cum = cumOf(o);
+  let best = 0, bd = Infinity;
+  for (let i = 0; i < o.length - 1; i++) { const d = segDist(p, o[i], o[i + 1]); if (d < bd) { bd = d; best = i; } }
+  const sPos = cum[best] + Math.min(dist(o[best], p), cum[best + 1] - cum[best]);
+  return beginGpxDrag(t, { li, s0: sPos, s1: sPos, free: true });
 }
 
 // Neue Route r in den alten Track o einsetzen, aber nur dort, wo sie wirklich abweicht:
