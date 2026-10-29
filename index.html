@@ -134,6 +134,8 @@ a.ib { text-decoration: none; box-sizing: border-box; }
 /* Popups */
 .leaflet-tracks-pane canvas, .leaflet-check-pane svg { pointer-events: none; }
 .leaflet-check-pane path.leaflet-interactive { pointer-events: visibleStroke; }
+.leaflet-check-pane path.grab { cursor: grab; }
+body.edit-dragging, body.edit-dragging * { cursor: grabbing !important; }
 .leaflet-popup-content { font: 13px/1.4 var(--font); }
 .leaflet-popup-content table { border-collapse: collapse; margin-top: 4px; font-variant-numeric: tabular-nums; }
 .leaflet-popup-content td { padding: 1px 8px 1px 0; vertical-align: top; }
@@ -401,6 +403,8 @@ const ICON = {
   x: '<path d="M6 6l12 12M18 6 6 18"/>',
   chevronUp: '<path d="m6 15 6-6 6 6"/>',
   refresh: '<path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/>',
+  save: '<path d="M5 3h11l3 3v15H5Z"/><path d="M8 3v5h7V3"/><path d="M8 21v-7h8v7"/>',
+  restore: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>',
   help: '<circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 2.5-3 4.5"/><path d="M12 17.5h.01"/>',
   install: '<rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M12 7v6M9 10.5 12 13l3-2.5"/>',
 };
@@ -1459,15 +1463,8 @@ function addGpx(file) {
     let g;
     try { g = parseGpx(reader.result); } catch (e) { setStatus(`${file.name}: ${e.message}`, 'err'); return; }
     if (!g.lines.length) { setStatus(`${file.name}: keine Track- oder Routenpunkte gefunden.`, 'err'); return; }
-    const group = L.layerGroup(), color = cssVar('--gpx');
-    for (const l of g.lines) {
-      const ll = l.map(p => [p[0], p[1]]);
-      group.addLayer(L.polyline(ll, { renderer: trackRenderer, color: '#ffffff', weight: 11, opacity: 0.9, interactive: false }));
-      group.addLayer(L.polyline(ll, { renderer: trackRenderer, color, weight: 7, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }));
-    }
-    const all = g.lines.flat();
-    const t = { kind: 'gpx', visible: true, name: g.name || file.name.replace(/\.gpx$/i, ''), group, checkLayer: L.layerGroup(), check: null,
-      lines: g.lines, bounds: L.latLngBounds(all.map(p => [p[0], p[1]])), meters: g.lines.reduce((s, l) => s + lengthOf(l), 0), up: ascentOf(all) };
+    const t = { kind: 'gpx', visible: true, name: g.name || file.name.replace(/\.gpx$/i, ''), group: L.layerGroup(), checkLayer: L.layerGroup(), check: null, lines: g.lines };
+    drawGpxLines(t);
     gpxTracks.push(t);
     show.gpx = true; tracksHidden = false;   // neu geladene Datei soll sichtbar sein
     applyTrackVisibility();
@@ -1479,6 +1476,21 @@ function addGpx(file) {
   reader.readAsText(file);
 }
 
+// Linien einer GPX-Datei (neu) zeichnen und Kennzahlen berechnen
+function drawGpxLines(t) {
+  t.group.clearLayers();
+  const color = cssVar('--gpx');
+  for (const l of t.lines) {
+    const ll = l.map(p => [p[0], p[1]]);
+    t.group.addLayer(L.polyline(ll, { renderer: trackRenderer, color: '#ffffff', weight: 11, opacity: 0.9, interactive: false }));
+    t.group.addLayer(L.polyline(ll, { renderer: trackRenderer, color, weight: 7, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }));
+  }
+  const all = t.lines.flat();
+  t.bounds = L.latLngBounds(all.map(p => [p[0], p[1]]));
+  t.meters = t.lines.reduce((s, l) => s + lengthOf(l), 0);
+  t.up = ascentOf(all);
+}
+
 function renderGpxList() {
   const ul = $('gpxList');
   ul.innerHTML = '';
@@ -1486,7 +1498,14 @@ function renderGpxList() {
     const li = document.createElement('li');
     li.className = t.visible ? '' : 'off';
     li.innerHTML = `<span title="${esc(t.name)}"><i class="swatchline" style="background:${cssVar('--gpx')}"></i>${esc(t.name)} · ${km(t.meters)}${t.up != null ? ' · ' + fmt(t.up) + ' hm' : ''}</span>
-      <button class="ib sm" type="button" data-a="vis" aria-pressed="${!t.visible}"></button><button class="ib sm" type="button" data-a="zoom"></button><button class="ib sm" type="button" data-a="del"></button>`;
+      ${t.orig ? '<button class="ib sm" type="button" data-a="save"></button><button class="ib sm" type="button" data-a="restore"></button>' : ''}<button class="ib sm" type="button" data-a="vis" aria-pressed="${!t.visible}"></button><button class="ib sm" type="button" data-a="zoom"></button><button class="ib sm" type="button" data-a="del"></button>`;
+    li.style.gridTemplateColumns = `1fr repeat(${t.orig ? 5 : 3}, auto)`;
+    if (t.orig) {
+      setIconBtn(li.querySelector('[data-a=save]'), 'save', 'Geänderten Track als GPX speichern');
+      setIconBtn(li.querySelector('[data-a=restore]'), 'restore', 'Änderungen zurücknehmen');
+      li.querySelector('[data-a=save]').onclick = () => saveGpx(t.name + ' (geändert)', t.lines, msg => setStatus(msg));
+      li.querySelector('[data-a=restore]').onclick = () => { t.lines = t.orig; t.orig = null; drawGpxLines(t); renderGpxList(); onTracksChanged(); };
+    }
     const chk = checkSummary(t);
     if (chk) li.appendChild(chk);
     setIconBtn(li.querySelector('[data-a=vis]'), t.visible ? 'eye' : 'eyeOff', t.visible ? 'Diese Datei ausblenden' : 'Diese Datei einblenden');
@@ -1538,7 +1557,7 @@ function trackPoints() {
 function redrawTrack() {
   const pts = trackPoints(), done = [], pend = [];
   drawn.segs.forEach(s => (s.pending || s.error ? pend : done).push(s.pts.map(p => [p[0], p[1]])));
-  drawn.line.setLatLngs(done); drawn.casing.setLatLngs(done); drawn.pendingLine.setLatLngs(pend);
+  drawn.line.setLatLngs(done); drawn.casing.setLatLngs(done); drawn.pendingLine.setLatLngs(pend); drawn.hit.setLatLngs(done);
   const busy = drawn.segs.filter(s => s.pending).length, errs = drawn.segs.filter(s => s.error);
   let txt = drawn.wps.length ? `${drawn.wps.length} Punkte · ${km(lengthOf(pts))}` : 'Noch kein Track.';
   const up = ascentOf(pts);
@@ -1553,10 +1572,20 @@ function redrawTrack() {
   onTracksChanged();
 }
 
-function addWaypoint(latlng) {
-  const m = L.marker(latlng, { icon: wpIcon(!drawn.wps.length), draggable: true, keyboard: false, zIndexOffset: 1000 }).addTo(drawn.group);
+function waypointMarker(latlng, first) {
+  const m = L.marker(latlng, { icon: wpIcon(first), draggable: true, keyboard: false, zIndexOffset: 1000 }).addTo(drawn.group);
   m.on('dragend', () => { const i = drawn.wps.indexOf(m); if (i > 0) routeSeg(i - 1); if (i < drawn.wps.length - 1) routeSeg(i); });
   m.on('click', () => removeWaypoint(drawn.wps.indexOf(m)));
+  return m;
+}
+// Punkt an Stelle i einfügen (zwischen zwei vorhandenen Punkten) und beide Abschnitte neu berechnen
+function insertWaypoint(i, latlng) {
+  drawn.wps.splice(i, 0, waypointMarker(latlng, false));
+  drawn.segs.splice(i - 1, 1, { pts: [] }, { pts: [] });
+  routeSeg(i - 1); routeSeg(i);
+}
+function addWaypoint(latlng) {
+  const m = waypointMarker(latlng, !drawn.wps.length);
   drawn.wps.push(m);
   if (drawn.wps.length > 1) { drawn.segs.push({ pts: [] }); routeSeg(drawn.segs.length - 1); }
   redrawTrack();
@@ -1583,32 +1612,28 @@ function setDrawing(on) {
   if (on) map.closePopup();
 }
 
-function buildGpx(name) {
-  const trkpts = trackPoints().map(p => `      <trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}">${p[2] != null ? `<ele>${(+p[2]).toFixed(1)}</ele>` : ''}</trkpt>`).join('\n');
+function buildGpx(name, lines) {
+  const seg = l => '    <trkseg>\n' + l.map(p => `      <trkpt lat="${p[0].toFixed(6)}" lon="${p[1].toFixed(6)}">${p[2] != null ? `<ele>${(+p[2]).toFixed(1)}</ele>` : ''}</trkpt>`).join('\n') + '\n    </trkseg>';
   return `<?xml version="1.0" encoding="UTF-8"?>
 <gpx version="1.1" creator="Rennrad Hoamat" xmlns="http://www.topografix.com/GPX/1/1">
   <metadata><name>${xmlEsc(name)}</name><time>${new Date().toISOString()}</time></metadata>
   <trk>
     <name>${xmlEsc(name)}</name>
-    <trkseg>
-${trkpts}
-    </trkseg>
+${lines.map(seg).join('\n')}
   </trk>
 </gpx>
 `;
 }
 
-async function saveDrawnGpx() {
-  const name = $('drawName').value.trim() || 'Rennradrunde';
+// GPX-Datei speichern: Speicherort wählen, wo der Browser das kann, sonst in den Download-Ordner
+async function saveGpx(name, lines, report) {
   const fileName = name.replace(/[^\wäöüÄÖÜß\- ]+/g, '').trim().replace(/\s+/g, '-') + '.gpx';
-  const blob = new Blob([buildGpx(name)], { type: 'application/gpx+xml' });
+  const blob = new Blob([buildGpx(name, lines)], { type: 'application/gpx+xml' });
   if (window.showSaveFilePicker) {
-    // Chrome/Edge: Speicherort selbst wählen
     try {
       const h = await window.showSaveFilePicker({ suggestedName: fileName, types: [{ description: 'GPX-Track', accept: { 'application/gpx+xml': ['.gpx'] } }] });
       const w = await h.createWritable(); await w.write(blob); await w.close();
-      $('drawStats').textContent = `Gespeichert als ${h.name}.`;
-      setTimeout(redrawTrack, 4000);
+      report(`Gespeichert als ${h.name}.`);
       return;
     } catch (e) {
       if (e.name === 'AbortError') return; // Dialog abgebrochen
@@ -1618,8 +1643,91 @@ async function saveDrawnGpx() {
   a.href = URL.createObjectURL(blob); a.download = fileName;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
-  $('drawStats').textContent = `${fileName} wurde in den Download-Ordner gespeichert.`;
-  setTimeout(redrawTrack, 4000);
+  report(`${fileName} wurde in den Download-Ordner gespeichert.`);
+}
+function saveDrawnGpx() {
+  saveGpx($('drawName').value.trim() || 'Rennradrunde', [trackPoints()], msg => { $('drawStats').textContent = msg; setTimeout(redrawTrack, 4000); });
+}
+
+/* --- Track durch Anfassen und Ziehen ändern --- */
+// Eine Track-Check-Markierung (oder die neongrüne Linie) anfassen und auf einen besseren Weg ziehen:
+// Beim Loslassen wird die Strecke vom Anfang der Stelle über den neuen Punkt bis zu ihrem Ende neu berechnet.
+let dragEndedAt = 0;
+function makeDraggable(layer, begin) {
+  layer.options.className = 'grab';
+  const hook = () => {
+    const el = layer._path;
+    if (!el || el._rhDrag) return;
+    el._rhDrag = true;
+    el.classList.add('grab');
+    const start = ev => {
+      if (ev.button !== 0) return;
+      ev.stopPropagation(); ev.preventDefault();          // die Karte soll sich nicht mitbewegen
+      const sp = map.mouseEventToContainerPoint(ev), ctx = begin(map.containerPointToLatLng(sp));
+      if (!ctx) return;
+      const blue = cssVar('--chk');
+      let moved = false, ghost = null, pin = null;
+      const move = e => {
+        const p = map.mouseEventToContainerPoint(e);
+        if (!moved && p.distanceTo(sp) < 6) return;
+        moved = true; document.body.classList.add('edit-dragging');
+        const ll = map.containerPointToLatLng(p);
+        if (!ghost) {
+          ghost = L.polyline([ctx.a, ll, ctx.b], { renderer: checkRenderer, color: blue, weight: 3, dashArray: '6 6', interactive: false }).addTo(map);
+          pin = L.circleMarker(ll, { renderer: checkRenderer, radius: 7, color: '#fff', weight: 3, fillColor: blue, fillOpacity: 1, interactive: false }).addTo(map);
+        } else { ghost.setLatLngs([ctx.a, ll, ctx.b]); pin.setLatLng(ll); }
+      };
+      const up = e => {
+        document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
+        document.body.classList.remove('edit-dragging');
+        if (ghost) { map.removeLayer(ghost); map.removeLayer(pin); }
+        if (!moved) return;                                 // nur geklickt: Fenster öffnet sich wie gewohnt
+        dragEndedAt = Date.now();
+        const close = () => map.closePopup();
+        map.on('popupopen', close); setTimeout(() => map.off('popupopen', close), 400);
+        ctx.finish(map.containerPointToLatLng(map.mouseEventToContainerPoint(e)));
+      };
+      document.addEventListener('mousemove', move); document.addEventListener('mouseup', up);
+    };
+    el.addEventListener('mousedown', start);
+  };
+  layer.on('add', hook);
+  if (layer._path) hook();
+  return layer;
+}
+
+// Gezeichneter Track: Punkt in den nächstgelegenen Abschnitt einfügen
+function beginDrawnDrag(ll) {
+  if (drawn.segs.length === 0) return null;
+  let best = -1, bd = Infinity;
+  drawn.segs.forEach((s, i) => { const d = lineDist([ll.lat, ll.lng], s.pts); if (d < bd) { bd = d; best = i; } });
+  if (best < 0) return null;
+  return { a: drawn.wps[best].getLatLng(), b: drawn.wps[best + 1].getLatLng(), finish: m => insertWaypoint(best + 1, m) };
+}
+
+// GPX-Datei: den markierten Abschnitt über den neuen Punkt neu berechnen
+function beginGpxDrag(t, run) {
+  const line = t.lines[run.li];
+  const cum = [0];
+  for (let i = 1; i < line.length; i++) cum.push(cum[i - 1] + dist(line[i - 1], line[i]));
+  let i0 = 0, i1 = line.length - 1;
+  for (let i = 0; i < line.length; i++) { if (cum[i] <= run.s0) i0 = i; if (cum[i] >= run.s1) { i1 = i; break; } }
+  const a = L.latLng(line[i0][0], line[i0][1]), b = L.latLng(line[i1][0], line[i1][1]);
+  return { a, b, finish: async m => {
+    setStatus('Berechne die geänderte Strecke …');
+    const mode = $('drawMode').value;
+    let pts;
+    try {
+      pts = mode === 'straight' ? [[a.lat, a.lng, null], [m.lat, m.lng, null], [b.lat, b.lng, null]]
+        : [...await fetchRoute(a, m, mode), ...(await fetchRoute(m, b, mode)).slice(1)];
+    } catch (e) { setStatus(`Strecke konnte nicht geändert werden: ${e.message}`, 'err'); return; }
+    if (!t.orig) t.orig = t.lines.map(l => l.slice());
+    t.lines[run.li] = [...line.slice(0, i0), ...pts, ...line.slice(i1 + 1)];
+    drawGpxLines(t);
+    renderGpxList();
+    onTracksChanged();
+    setStatus(`${t.name}: Strecke geändert. Mit dem Speichern-Symbol in der Dateiliste sicherst du die neue Fassung.`);
+  } };
 }
 
 function initTracks() {
@@ -1630,10 +1738,12 @@ function initTracks() {
   drawn.casing = L.polyline([], { renderer: trackRenderer, color: cssVar('--draw-casing'), weight: 11, opacity: 0.9, interactive: false }).addTo(drawn.group);
   drawn.line = L.polyline([], { renderer: trackRenderer, color: neon, weight: 6, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }).addTo(drawn.group);
   drawn.pendingLine = L.polyline([], { renderer: trackRenderer, color: neon, weight: 3, dashArray: '4 6', opacity: 0.9, interactive: false }).addTo(drawn.group);
+  // unsichtbare, breite Greiflinie über dem Track: anfassen und ziehen fügt einen Punkt ein
+  drawn.hit = makeDraggable(L.polyline([], { renderer: checkRenderer, color: '#000', weight: 18, opacity: 0, interactive: true }), beginDrawnDrag).addTo(drawn.group);
 
   $('drawToggle').addEventListener('click', () => setDrawing(!drawn.on));
   map.on('click', e => {
-    if (!drawn.on) return;
+    if (!drawn.on || Date.now() - dragEndedAt < 400) return;   // Ende eines Ziehens ist kein neuer Punkt
     if (!show.draw || tracksHidden || peeking) { show.draw = true; tracksHidden = false; peeking = false; } // wer weiterzeichnet, will den Track sehen
     addWaypoint(e.latlng);
   });
@@ -1746,7 +1856,7 @@ function checkLine(ll, data, on, tol) {
         const hit = data.grid.near(S[i].p, tol), k = hit ? hit.data.k : '';
         tally.set(k, (tally.get(k) || 0) + 1);
       }
-      runs.push({ pts: S.slice(i0, i1 + 1).map(s => s.p), len, on: [...tally].sort((a, b) => b[1] - a[1]) });
+      runs.push({ pts: S.slice(i0, i1 + 1).map(s => s.p), len, s0: S[i0].s, s1: S[i1].s, on: [...tally].sort((a, b) => b[1] - a[1]) });
     }
     cur = null; gap = null;
   };
@@ -1772,16 +1882,16 @@ function runCheck() {
     for (const t of list) {
       t.checkLayer.clearLayers();
       const sum = { runs: 0, len: 0, checked: 0, total: 0 };
-      for (const ll of linesOf(t)) {
+      linesOf(t).forEach((ll, li) => {
         const r = checkLine(ll, data, on, CHECK_TOL[t.kind]);
         sum.checked += r.checked; sum.total += r.total;
         for (const run of r.runs) {
-          sum.runs++; sum.len += run.len;
+          sum.runs++; sum.len += run.len; run.li = li;
           t.checkLayer.addLayer(L.polyline(run.pts, { renderer: checkRenderer, color: blue, weight: 15, opacity: 1, lineCap: 'round', lineJoin: 'round', interactive: false }));
-          t.checkLayer.addLayer(L.polyline(run.pts, { renderer: checkRenderer, color: '#ffffff', weight: 8, opacity: 1, lineCap: 'round', lineJoin: 'round' })
-            .bindPopup(() => checkPopup(t, run)));
+          t.checkLayer.addLayer(makeDraggable(L.polyline(run.pts, { renderer: checkRenderer, color: '#ffffff', weight: 8, opacity: 1, lineCap: 'round', lineJoin: 'round' })
+            .bindPopup(() => checkPopup(t, run)), t.kind === 'draw' ? beginDrawnDrag : () => beginGpxDrag(t, run)));
         }
-      }
+      });
       t.check = sum;
     }
   }
@@ -1794,7 +1904,8 @@ function checkPopup(t, run) {
     return k ? `„${CLS[k].name}“ – in der Legende ausgeschaltet${share}` : `keinem für das Rennrad eingestuften Weg${share}: z. B. unbefestigt, Pflaster auf einem Feldweg, Fußweg ohne Radfreigabe, Kraftfahrstraße oder ein in OpenStreetMap fehlender Weg`;
   });
   return `<strong>Track-Check</strong><br>${t.kind === 'draw' ? 'Gezeichneter Track' : esc(t.name)}: ${km(run.len)} nicht auf eingeschalteten Wegen
-    <div class="pn">Verläuft auf ${what.map(esc).join('; ')}.</div>`;
+    <div class="pn">Verläuft auf ${what.map(esc).join('; ')}.</div>
+    <div class="pn"><b>Ändern:</b> Markierung mit der Maus anfassen und auf einen eingeschalteten Weg ziehen – die Strecke wird dort neu berechnet.</div>`;
 }
 
 // Kurzfassung unter dem Track im Panel
