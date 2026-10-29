@@ -1723,8 +1723,15 @@ function beginGpxDrag(t, run) {
     const mode = $('drawMode').value;
     let next;
     try {
-      if (mode === 'straight') {
-        next = [...line.slice(0, i0 + 1), [m.lat, m.lng, null], ...line.slice(i1)];
+      const atStart = i0 === 0, atEnd = i1 >= line.length - 1;
+      const mp = [m.lat, m.lng, null];
+      if (atStart !== atEnd) {
+        // Die Stelle liegt am Anfang oder Ende des Tracks: der gezogene Punkt wird neuer Anfang bzw. neues Ende
+        if (mode === 'straight') next = atEnd ? [...line.slice(0, i0 + 1), mp] : [mp, ...line.slice(i1)];
+        else if (atEnd) next = spliceEnd(line, ia, await fetchRoute(ll(ia), m, mode), REROUTE_TOL);
+        else next = spliceStart(line, ib, await fetchRoute(m, ll(ib), mode), REROUTE_TOL);
+      } else if (mode === 'straight') {
+        next = [...line.slice(0, i0 + 1), mp, ...line.slice(i1)];
       } else {
         const r = [...await fetchRoute(ll(ia), m, mode), ...(await fetchRoute(m, ll(ib), mode)).slice(1)];
         next = spliceRoute(line, ia, ib, r, REROUTE_TOL);
@@ -1738,6 +1745,25 @@ function beginGpxDrag(t, run) {
     onTracksChanged();
     setStatus(`${t.name}: Strecke geändert. Mit dem Speichern-Symbol in der Dateiliste sicherst du die neue Fassung.`);
   } };
+}
+
+// Neues Ende: alter Track bis zur Abzweigung, dann die neue Route bis zum gezogenen Punkt
+function spliceEnd(o, ia, r, tol) {
+  const sub = o.slice(ia);
+  let k1 = 0; while (k1 < r.length - 1 && lineDist(r[k1], sub) <= tol) k1++;
+  const s = Math.max(0, k1 - 1);
+  let j1 = ia, bd = Infinity;
+  for (let i = ia; i < o.length - 1; i++) { const d = segDist(r[s], o[i], o[i + 1]); if (d < bd) { bd = d; j1 = i; } }
+  return [...o.slice(0, j1 + 1), ...r.slice(s)];
+}
+// Neuer Anfang: neue Route vom gezogenen Punkt bis zur Einmündung, dann der alte Track
+function spliceStart(o, ib, r, tol) {
+  const sub = o.slice(0, ib + 1);
+  let k2 = r.length - 1; while (k2 > 0 && lineDist(r[k2], sub) <= tol) k2--;
+  const e = Math.min(r.length - 1, k2 + 1);
+  let j2 = 0, bd = Infinity;
+  for (let i = 0; i < ib; i++) { const d = segDist(r[e], o[i], o[i + 1]); if (d < bd) { bd = d; j2 = i; } }
+  return [...r.slice(0, e + 1), ...o.slice(j2 + 1)];
 }
 
 // Neue Route r in den alten Track o einsetzen, aber nur dort, wo sie wirklich abweicht:
@@ -2191,6 +2217,12 @@ function selfTest() {
   const detour = [...straight.slice(5, 16), [48.002, 11.017], [48.003, 11.02], [48.002, 11.023], ...straight.slice(25, 36)];
   const spliced = spliceRoute(straight, 5, 35, detour, 30);
   eq('Umleitung: keine Sackgasse', spliced && spliced.filter(p => p[0] === 48 && p[1] > 11.0155 && p[1] < 11.0245).length, 0);
+  const newEnd = spliceEnd(straight, 25, [...straight.slice(25, 31), [48.002, 11.031], [48.004, 11.032]], 30);
+  eq('Neues Ende am gezogenen Punkt', newEnd[newEnd.length - 1], [48.004, 11.032]);
+  eq('Neues Ende: alter Track bis zur Abzweigung', newEnd.filter(p => p[0] === 48 && p[1] > 11.0305).length, 0);
+  const newStart = spliceStart(straight, 15, [[48.004, 11.0], [48.002, 11.002], ...straight.slice(4, 16)], 30);
+  eq('Neuer Anfang am gezogenen Punkt', newStart[0], [48.004, 11.0]);
+  eq('Neuer Anfang: kein Rest davor', newStart.filter(p => p[0] === 48 && p[1] < 11.0035).length, 0);
   eq('Umleitung: Rest bleibt', spliced && [spliced[0], spliced[spliced.length - 1]], [[48, 11], [48, 11.04]]);
   // Track-Check
   const grid = new SegGrid();
